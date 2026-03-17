@@ -1,0 +1,114 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600&family=Playfair+Display:ital,wght@0,400;0,600;1,400&family=JetBrains+Mono:wght@400;500&display=swap');
+@import "tailwindcss";
+
+@theme {
+  --font-sans: "Inter", ui-sans-serif, system-ui, sans-serif;
+  --font-serif: "Playfair Display", ui-serif, Georgia, Cambria, "Times New Roman", Times, serif;
+  --font-mono: "JetBrains Mono", ui-monospace, SFMono-Regular, monospace;
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-destructive: var(--destructive);
+  --color-destructive-foreground: var(--destructive-foreground);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+  --radius-lg: var(--radius);
+  --radius-md: calc(var(--radius) - 2px);
+  --radius-sm: calc(var(--radius) - 4px);
+  
+  --shadow-soft: var(--shadow-soft);
+  --shadow-inner-soft: var(--shadow-inner-soft);
+}
+
+@layer base {
+  :root {
+    --background: #f4f6f8; /* Soft off-white/gray */
+    --foreground: #1a1a1a;
+    
+    --card: #f4f6f8;
+    --card-foreground: #1a1a1a;
+    
+    --popover: #ffffff;
+    --popover-foreground: #1a1a1a;
+    
+    --primary: #2a2a2a;
+    --primary-foreground: #ffffff;
+    
+    --secondary: #eef1f5;
+    --secondary-foreground: #1a1a1a;
+    
+    --muted: #eef1f5;
+    --muted-foreground: #6b7280;
+    
+    --accent: #eef1f5;
+    --accent-foreground: #1a1a1a;
+    
+    --destructive: #ef4444;
+    --destructive-foreground: #ffffff;
+
+    --border: #e2e8f0;
+    --input: #e2e8f0;
+    --ring: #94a3b8;
+    
+    --radius: 1rem;
+
+    /* Neo-morphic shadows for light mode */
+    --shadow-soft: 8px 8px 16px #d1d9e6, -8px -8px 16px #ffffff;
+    --shadow-inner-soft: inset 6px 6px 12px #d1d9e6, inset -6px -6px 12px #ffffff;
+  }
+
+  .dark {
+    --background: #1e2023; /* Soft charcoal */
+    --foreground: #e2e8f0;
+    
+    --card: #1e2023;
+    --card-foreground: #e2e8f0;
+    
+    --popover: #1e2023;
+    --popover-foreground: #e2e8f0;
+    
+    --primary: #e2e8f0;
+    --primary-foreground: #1e2023;
+    
+    --secondary: #2a2d31;
+    --secondary-foreground: #e2e8f0;
+    
+    --muted: #2a2d31;
+    --muted-foreground: #94a3b8;
+    
+    --accent: #2a2d31;
+    --accent-foreground: #e2e8f0;
+    
+    --destructive: #7f1d1d;
+    --destructive-foreground: #e2e8f0;
+    
+    --border: #2a2d31;
+    --input: #2a2d31;
+    --ring: #475569;
+
+    /* Neo-morphic shadows for dark mode */
+    --shadow-soft: 8px 8px 16px #151619, -8px -8px 16px #272a2d;
+    --shadow-inner-soft: inset 6px 6px 12px #151619, inset -6px -6px 12px #272a2d;
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+  body {
+    @apply bg-background text-foreground antialiased transition-colors duration-300;
+  }
+}
