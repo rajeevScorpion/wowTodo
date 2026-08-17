@@ -109,7 +109,7 @@ interface ReminderCandidate {
  * synchronous — no I/O — so the whole plan can be computed, sorted and trimmed
  * before a single notification is scheduled.
  */
-function buildReminderCandidates(
+export function buildReminderCandidates(
     todos: Todo[],
     taskFor: (todo: Todo) => Task | undefined,
     allSettings: ReminderSettings[],

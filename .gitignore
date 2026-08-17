@@ -14,6 +14,12 @@ google-services.json
 GoogleService-Info.plist
 service-account*.json
 
+# Supabase CLI scratch state. `.temp/pooler-url` contains the production
+# database connection string *including the password*, so this must never be
+# committed — belt and braces alongside supabase/.gitignore.
+supabase/.temp/
+.branches/
+
 # ─── Dependencies ──────────────────────────────────────────────────────
 node_modules/
 

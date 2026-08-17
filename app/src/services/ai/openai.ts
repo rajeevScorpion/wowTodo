@@ -1,8 +1,7 @@
 import { AIGeneratedTask, AppLanguage, BranchContext, normalizeAITodos } from '../../types';
 import { TASK_DECOMPOSITION_SYSTEM_PROMPT } from './prompt';
 import { BRANCH_DECOMPOSITION_SYSTEM_PROMPT } from './branchPrompt';
-
-const OPENAI_API_URL = 'https://api.openai.com/v1/chat/completions';
+import { proxyJson } from './proxy';
 
 function buildUserMessage(userInput: string, existingGroups?: string[], language?: AppLanguage): string {
     let message = '';
@@ -19,17 +18,10 @@ function buildUserMessage(userInput: string, existingGroups?: string[], language
 
 export async function generateTaskWithOpenAI(
     userInput: string,
-    apiKey: string,
     existingGroups?: string[],
     language?: AppLanguage,
 ): Promise<AIGeneratedTask> {
-    const response = await fetch(OPENAI_API_URL, {
-        method: 'POST',
-        headers: {
-            'Content-Type': 'application/json',
-            Authorization: `Bearer ${apiKey}`,
-        },
-        body: JSON.stringify({
+    const response = await proxyJson('openai-chat', {
             model: 'gpt-4o-mini',
             temperature: 0.3,
             response_format: { type: 'json_object' },
@@ -37,8 +29,7 @@ export async function generateTaskWithOpenAI(
                 { role: 'system', content: TASK_DECOMPOSITION_SYSTEM_PROMPT },
                 { role: 'user', content: buildUserMessage(userInput, existingGroups, language) },
             ],
-        }),
-    });
+        });
 
     if (!response.ok) {
         const errorBody = await response.text();
@@ -106,17 +97,10 @@ function buildBranchUserMessage(
 
 export async function generateBranchWithOpenAI(
     context: BranchContext,
-    apiKey: string,
     existingGroups?: string[],
     language?: AppLanguage,
 ): Promise<AIGeneratedTask> {
-    const response = await fetch(OPENAI_API_URL, {
-        method: 'POST',
-        headers: {
-            'Content-Type': 'application/json',
-            Authorization: `Bearer ${apiKey}`,
-        },
-        body: JSON.stringify({
+    const response = await proxyJson('openai-chat', {
             model: 'gpt-4o-mini',
             temperature: 0.3,
             response_format: { type: 'json_object' },
@@ -124,8 +108,7 @@ export async function generateBranchWithOpenAI(
                 { role: 'system', content: BRANCH_DECOMPOSITION_SYSTEM_PROMPT },
                 { role: 'user', content: buildBranchUserMessage(context, existingGroups, language) },
             ],
-        }),
-    });
+        });
 
     if (!response.ok) {
         const errorBody = await response.text();

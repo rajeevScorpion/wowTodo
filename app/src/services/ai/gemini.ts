@@ -1,9 +1,7 @@
 import { AIGeneratedTask, AppLanguage, BranchContext, normalizeAITodos } from '../../types';
 import { TASK_DECOMPOSITION_SYSTEM_PROMPT } from './prompt';
 import { BRANCH_DECOMPOSITION_SYSTEM_PROMPT } from './branchPrompt';
-
-const GEMINI_API_URL =
-    'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent';
+import { proxyJson } from './proxy';
 
 function buildUserMessage(userInput: string, existingGroups?: string[], language?: AppLanguage): string {
     let message = '';
@@ -20,14 +18,10 @@ function buildUserMessage(userInput: string, existingGroups?: string[], language
 
 export async function generateTaskWithGemini(
     userInput: string,
-    apiKey: string,
     existingGroups?: string[],
     language?: AppLanguage,
 ): Promise<AIGeneratedTask> {
-    const response = await fetch(`${GEMINI_API_URL}?key=${apiKey}`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
+    const response = await proxyJson('gemini-generate', {
             contents: [
                 {
                     parts: [
@@ -41,8 +35,7 @@ export async function generateTaskWithGemini(
                 temperature: 0.3,
                 responseMimeType: 'application/json',
             },
-        }),
-    });
+        });
 
     if (!response.ok) {
         const errorBody = await response.text();
@@ -110,14 +103,10 @@ function buildBranchUserMessage(
 
 export async function generateBranchWithGemini(
     context: BranchContext,
-    apiKey: string,
     existingGroups?: string[],
     language?: AppLanguage,
 ): Promise<AIGeneratedTask> {
-    const response = await fetch(`${GEMINI_API_URL}?key=${apiKey}`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
+    const response = await proxyJson('gemini-generate', {
             contents: [
                 {
                     parts: [
@@ -131,8 +120,7 @@ export async function generateBranchWithGemini(
                 temperature: 0.3,
                 responseMimeType: 'application/json',
             },
-        }),
-    });
+        });
 
     if (!response.ok) {
         const errorBody = await response.text();

@@ -3,8 +3,24 @@ import { generateTaskWithOpenAI, generateBranchWithOpenAI } from './openai';
 import { generateTaskWithGemini, generateBranchWithGemini } from './gemini';
 import { transcribeAudio } from './whisper';
 
-const OPENAI_KEY = process.env.EXPO_PUBLIC_OPENAI_API_KEY || '';
-const GEMINI_KEY = process.env.EXPO_PUBLIC_GEMINI_API_KEY || '';
+/**
+ * AI orchestration.
+ *
+ * Provider credentials live server-side in the ai-proxy Edge Function, so the
+ * app no longer knows which providers are configured. The fallback is therefore
+ * driven by what actually fails rather than by which keys are present: try
+ * OpenAI, fall back to Gemini, and surface a single actionable error if neither
+ * works.
+ */
+
+/** Both providers failed, or neither is configured on the server. */
+function providersUnavailable(openAiError: unknown, geminiError: unknown): Error {
+    console.error('OpenAI failed:', openAiError);
+    console.error('Gemini failed:', geminiError);
+    return new Error(
+        'Could not reach the AI service. Please check your connection and try again.',
+    );
+}
 
 /**
  * Generate a task with todos from user input.
@@ -15,28 +31,19 @@ export async function generateTask(
     existingGroups?: string[],
     language?: AppLanguage,
 ): Promise<AIGeneratedTask> {
-    if (OPENAI_KEY) {
-        try {
-            return await generateTaskWithOpenAI(userInput, OPENAI_KEY, existingGroups, language);
-        } catch (error) {
-            console.warn('OpenAI failed, falling back to Gemini:', error);
-        }
+    let openAiError: unknown;
+    try {
+        return await generateTaskWithOpenAI(userInput, existingGroups, language);
+    } catch (error) {
+        openAiError = error;
+        console.warn('OpenAI failed, falling back to Gemini:', error);
     }
 
-    if (GEMINI_KEY) {
-        try {
-            return await generateTaskWithGemini(userInput, GEMINI_KEY, existingGroups, language);
-        } catch (error) {
-            console.error('Gemini also failed:', error);
-            throw new Error(
-                'Both AI providers failed. Please check your API keys and try again.',
-            );
-        }
+    try {
+        return await generateTaskWithGemini(userInput, existingGroups, language);
+    } catch (geminiError) {
+        throw providersUnavailable(openAiError, geminiError);
     }
-
-    throw new Error(
-        'No AI provider configured. Add EXPO_PUBLIC_OPENAI_API_KEY or EXPO_PUBLIC_GEMINI_API_KEY to your .env file.',
-    );
 }
 
 /**
@@ -48,37 +55,27 @@ export async function generateBranch(
     existingGroups?: string[],
     language?: AppLanguage,
 ): Promise<AIGeneratedTask> {
-    if (OPENAI_KEY) {
-        try {
-            return await generateBranchWithOpenAI(context, OPENAI_KEY, existingGroups, language);
-        } catch (error) {
-            console.warn('OpenAI branch generation failed, falling back to Gemini:', error);
-        }
+    let openAiError: unknown;
+    try {
+        return await generateBranchWithOpenAI(context, existingGroups, language);
+    } catch (error) {
+        openAiError = error;
+        console.warn('OpenAI branch generation failed, falling back to Gemini:', error);
     }
 
-    if (GEMINI_KEY) {
-        try {
-            return await generateBranchWithGemini(context, GEMINI_KEY, existingGroups, language);
-        } catch (error) {
-            console.error('Gemini branch generation also failed:', error);
-            throw new Error(
-                'Both AI providers failed. Please check your API keys and try again.',
-            );
-        }
+    try {
+        return await generateBranchWithGemini(context, existingGroups, language);
+    } catch (geminiError) {
+        throw providersUnavailable(openAiError, geminiError);
     }
-
-    throw new Error(
-        'No AI provider configured. Add EXPO_PUBLIC_OPENAI_API_KEY or EXPO_PUBLIC_GEMINI_API_KEY to your .env file.',
-    );
 }
 
 /**
- * Transcribe audio to text using Whisper.
- * Requires OpenAI API key.
+ * Transcribe audio to text. Served by Whisper via the ai-proxy function.
  */
-export async function transcribeVoice(audioUri: string, language: AppLanguage = 'en'): Promise<string> {
-    if (!OPENAI_KEY) {
-        throw new Error('OpenAI API key required for voice transcription');
-    }
-    return transcribeAudio(audioUri, OPENAI_KEY, language);
+export async function transcribeVoice(
+    audioUri: string,
+    language: AppLanguage = 'en',
+): Promise<string> {
+    return transcribeAudio(audioUri, language);
 }
