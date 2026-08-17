@@ -29,12 +29,12 @@ Scoring: ✅ pass · ⚠️ partial · ❌ fail
 | V01 | en | Single direct task | "Call the dentist to book a cleaning" | 1–4 todos | 3 todos; adds "Find the dentist's phone number" | ⚠️ over-decomposed |
 | V02 | en | Two independent tasks | "Buy milk and also renew my car insurance" | 2–6 | 5; 4 of them invented insurance sub-steps | ⚠️ |
 | V03 | en | Three+ tasks | "book flights, reserve a hotel, get travel insurance and pack" | 4–10 | 4, exact 1:1 | ✅ |
-| V04 | en | Relative time | "submit the tax form next Monday" | 2026-08-24 | **2026-08-21 (Friday)** | ❌ |
-| V05 | en | Explicit time | "Dinner party this Saturday at 7pm" | 2026-08-22T19:00 | **2026-08-20T19:00 (Thursday)** — time ✅, date ❌ | ❌ |
+| V04 | en | Relative time | "submit the tax form next Monday" | 2026-08-24 | ~~2026-08-21 (Friday)~~ → **2026-08-24 (Monday)** | ✅ *fixed* |
+| V05 | en | Explicit time | "Dinner party this Saturday at 7pm" | 2026-08-22T19:00 | ~~2026-08-20 (Thu)~~ → **2026-08-22T19:00 (Saturday)** | ✅ *fixed* |
 | V06 | en | Sequencing | "First defrost… after that marinate… once done grill" | ordered 3 | defrost → marinate → grill, exact order | ✅ |
 | V07 | en | Named person | "Ask Priya… tell Rahul to review it" | names kept | both names preserved in todo titles | ✅ |
 | V08 | en | Priority/urgency | "Urgent: pay the electricity bill today" | today | date ✅ 2026-08-17; but invents "Log into online banking" | ⚠️ |
-| V09 | en | Correction mid-utterance | "table for six, no wait, make it eight… Friday" | eight, 2026-08-21 | title "Book Table for **Eight**" ✅; date **2026-08-19 (Wed)** ❌; fabricates 19:00 | ⚠️ |
+| V09 | en | Correction mid-utterance | "table for six, no wait, make it eight… Friday" | eight, 2026-08-21 | "Book Table for **Eight**" ✅; ~~2026-08-19 (Wed)~~ → **2026-08-21 (Friday)** ✅; still fabricates 19:00 | ⚠️ *date fixed* |
 | V10 | en | Conversational filler | "Um so yeah… maybe I should you know clean the garage" | filler stripped | "Clean the Garage", 7 clean todos | ✅ |
 | V11 | en | Ambiguous | "Sort out the thing for the place" | **should clarify** | invents 5 todos incl. "Transport items to donation center" | ❌ |
 | V12 | en | Non-task speech | "The weather is really nice today and I feel happy" | **should clarify / no task** | invents "Enjoy the Nice Weather" + 4 todos | ❌ |
@@ -114,7 +114,7 @@ V09 produced `19:00` for a dinner booking where no time was stated, despite the 
 | Stage | Verdict |
 |---|---|
 | Transcription (Whisper) | ✅ not implicated — V18 shows the chain recovers from imperfect text |
-| **Prompt construction** | ❌ **missing weekday context — cause of the worst defect** |
+| **Prompt construction** | ✅ **fixed** — dates now resolved in code (`dateContext.ts`) |
 | **Prompt policy** | ❌ "never clarify" + "3-15 todos" cause fabrication and over-decomposition |
 | Model/reasoning | ⚠️ minor — mostly follows instructions given |
 | Parsing/schema | ✅ robust, 0 failures |

@@ -9,7 +9,7 @@ gate; this document exists to change that.
 | Layer | Tool | Coverage | Status |
 |---|---|---|---|
 | Types | `tsc --noEmit` | whole app | ✅ 0 errors |
-| Unit | jest + jest-expo | reminder scheduler only | ✅ 12/12 |
+| Unit | jest + jest-expo | reminder scheduler, AI date context | ✅ 19/19 |
 | Config | `expo-doctor` | 18 checks | 16/18 — `expo-asset` peer dep + upstream patch drift |
 | Migrations | `db:reset:local` | forward replay of all 13 | ✅ |
 | Authorisation | `npm run verify:rls` | share-recipient scope + user search, both directions | ✅ 17/17 |
