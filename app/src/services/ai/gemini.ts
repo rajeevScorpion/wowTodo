@@ -2,13 +2,14 @@ import { AIGeneratedTask, AppLanguage, BranchContext, normalizeAITodos } from '.
 import { TASK_DECOMPOSITION_SYSTEM_PROMPT } from './prompt';
 import { BRANCH_DECOMPOSITION_SYSTEM_PROMPT } from './branchPrompt';
 import { proxyJson } from './proxy';
+import { buildDateContext } from './dateContext';
 
 function buildUserMessage(userInput: string, existingGroups?: string[], language?: AppLanguage): string {
     let message = '';
     if (language) {
         message += `[LANGUAGE: ${language === 'hi' ? 'Hindi' : 'English'}]\n\n`;
     }
-    message += `[CURRENT DATE: ${new Date().toISOString().split('T')[0]}]\n\n`;
+    message += `${buildDateContext()}\n\n`;
     message += userInput;
     if (existingGroups && existingGroups.length > 0) {
         message += `\n\nExisting groups: [${existingGroups.join(', ')}]`;
@@ -68,7 +69,7 @@ function buildBranchUserMessage(
     if (language) {
         message += `[LANGUAGE: ${language === 'hi' ? 'Hindi' : 'English'}]\n\n`;
     }
-    message += `[CURRENT DATE: ${new Date().toISOString().split('T')[0]}]\n\n`;
+    message += `${buildDateContext()}\n\n`;
 
     message += `## Mother Task\nTitle: ${context.motherTask.title}\n`;
     if (context.motherTask.description) {

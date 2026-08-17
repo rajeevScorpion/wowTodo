@@ -18,7 +18,7 @@ Triage and fix plan: prompt 180.
 | **D3** | P1 | Build | `expo-asset` not a direct dependency (`expo-doctor` 17/18) | OPEN |
 | **D4** | P1 | Release | Release build is debug-signed (Expo template default) | OPEN |
 | **DF-1** | P1 | Branches | A task containing a branched todo **cannot be deleted** — 409, silently rolled back with no message | OPEN |
-| **VE-1** | P1 | AI prompt | **Named weekdays resolve to the wrong date** (9/9 deterministic) — reminders fire on the wrong day | OPEN |
+| ~~VE-1~~ | ~~P1~~ | AI prompt | Named weekdays resolved to the wrong date | ✅ **FIXED** — `dateContext.ts`, 0/9 → 9/9 |
 | **VE-2** | P1 | AI prompt | Fabricates task lists from ambiguous/non-task speech; cannot ask for clarification | OPEN |
 | **VE-3** | P2 | AI prompt | `[LANGUAGE: Hindi]` ignored for romanised Hinglish input — returns English | OPEN |
 | **VE-4** | P2 | AI prompt | Over-decomposes atomic tasks and invents unstated specifics | OPEN |
@@ -37,7 +37,7 @@ Triage and fix plan: prompt 180.
 
 ## Details for the highest-severity items
 
-### VE-1 — P1 · Named weekdays resolve to the wrong date
+### VE-1 — P1 · Named weekdays resolve to the wrong date  ✅ FIXED
 
 `buildUserMessage` sends `[CURRENT DATE: 2026-08-17]` with **no weekday**, and the model
 cannot reliably derive day-of-week from a bare date. Verified deterministic — 3 runs each,
@@ -49,10 +49,14 @@ cannot reliably derive day-of-week from a bare date. Verified deterministic — 
 | "this Saturday" | 2026-08-20 | Thursday | 2026-08-22 |
 | "on Friday" | 2026-08-19 | Wednesday | 2026-08-21 |
 
-Pure relative offsets are fine ("today" ✅, "next month" ✅) — only *named weekdays* fail.
-For a reminder app this means reminders fire on the wrong day. Origin is the prompt layer,
-not the model. Full analysis:
-[VOICE_EVALUATION_BASELINE.md](VOICE_EVALUATION_BASELINE.md).
+Pure relative offsets were fine ("today" ✅, "next month" ✅) — only *named weekdays* failed.
+
+**Resolved.** Adding the weekday to the tag changed nothing (byte-identical output, still
+0/9) — the model cannot do calendar arithmetic reliably even when told the day. The
+arithmetic now happens in `services/ai/dateContext.ts`, which supplies a resolved lookup
+table. **0/9 → 9/9**, and 4/4 on the baseline's date cases. The same helper fixed a second
+bug found along the way: the tag used `toISOString()` (UTC), dating every pre-05:30 task
+in IST to the previous day.
 
 ### VE-2 — P1 · Fabrication instead of clarification
 

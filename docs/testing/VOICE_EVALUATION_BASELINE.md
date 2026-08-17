@@ -16,7 +16,7 @@ and compare. Do not tune the prompt against this set alone — keep a holdout.
 | Pipeline errors | **0/18** |
 | Latency (end to end, local proxy → OpenAI) | min 1.9s · **p50 2.6s** · max 5.5s |
 | Intent preserved | 16/18 |
-| **Named-weekday date accuracy** | **0/9** ❌ |
+| **Named-weekday date accuracy** | **9/9** ✅ *(was 0/9 — fixed, see VE-1 below)* |
 | Ambiguity/non-task handling | **0/2** — fabricates instead of clarifying |
 | Language-tag compliance | 2/3 |
 
@@ -59,8 +59,8 @@ Scoring: ✅ pass · ⚠️ partial · ❌ fail
 
 ## Failure modes, ranked
 
-### 1 — Named-weekday dates are systematically wrong · P1
-**9/9 failures, fully deterministic across 3 runs each.**
+### 1 — Named-weekday dates were systematically wrong · P1 · ✅ **FIXED**
+**Was 9/9 failures, fully deterministic across 3 runs each. Now 9/9 correct.**
 
 | Input | Got | Weekday | Correct |
 |---|---|---|---|
@@ -73,9 +73,19 @@ Scoring: ✅ pass · ⚠️ partial · ❌ fail
 day-of-week from a bare date. Pure relative offsets work correctly ("today" → ✅,
 "next month" → ✅) — only *named weekdays* fail.
 
-**Impact is direct and user-visible:** reminders fire on the wrong day, which is the
-core promise of the product. Cheap to fix in the prompt layer, but **not fixed here**
-(AUDIT mode).
+**Impact was direct and user-visible:** reminders fired on the wrong day, which is the
+core promise of the product.
+
+**Fix (release plan slice 6).** Adding the weekday to the tag — the obvious first
+attempt — changed **nothing**: output was byte-identical, still 0/9. The model does not
+do calendar arithmetic reliably even when told what day it is. So the arithmetic moved
+into TypeScript (`services/ai/dateContext.ts`), which hands the model a resolved lookup
+table for the coming seven days and tells it not to compute dates itself.
+
+Result: **9/9** on the isolated probe (3 phrasings × 3 runs) and **4/4** on the
+baseline's date-bearing cases, against 1/4 before. The same helper also fixed a second,
+previously unnoticed bug: the tag was built with `toISOString()` (UTC), so for a user in
+IST every task created before 05:30 local was dated to the previous day.
 
 ### 2 — Fabrication on ambiguous and non-task input · P1
 The prompt instructs *"Prefer being helpful over asking for clarification"* and

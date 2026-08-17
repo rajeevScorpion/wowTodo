@@ -44,9 +44,30 @@ async function token() {
   return j.access_token;
 }
 
+// Mirrors src/services/ai/dateContext.ts. Pinned to a fixed date so results stay
+// comparable against docs/testing/VOICE_EVALUATION_BASELINE.md over time.
+const BASELINE_NOW = new Date('2026-08-17T10:00:00');
+const WEEKDAYS = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+const isoLocal = (d) =>
+    d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
+const addDays = (b, n) => { const d = new Date(b); d.setDate(d.getDate() + n); return d; };
+
+function buildDateContext(now = BASELINE_NOW) {
+    const today = isoLocal(now), todayName = WEEKDAYS[now.getDay()], tm = addDays(now, 1);
+    const lines = [
+        `[CURRENT DATE: ${today} (${todayName})]`, '',
+        '[DATE REFERENCE — already calculated. Use these exact dates; do not work them',
+        'out yourself. "this <day>" and "next <day>" both mean the next occurrence below.]',
+        `today = ${today} (${todayName})`,
+        `tomorrow = ${isoLocal(tm)} (${WEEKDAYS[tm.getDay()]})`,
+    ];
+    for (let o = 1; o <= 7; o++) { const d = addDays(now, o); lines.push(`${WEEKDAYS[d.getDay()]} = ${isoLocal(d)}`); }
+    return lines.join('\n');
+}
+
 function userMessage(u, lang) {
   let m = `[LANGUAGE: ${lang === 'hi' ? 'Hindi' : 'English'}]\n\n`;
-  m += `[CURRENT DATE: ${new Date().toISOString().split('T')[0]}]\n\n`;
+  m += `${buildDateContext()}\n\n`;
   m += u;
   m += `\n\nExisting groups: [Cooking, Work, Home]`;
   return m;
