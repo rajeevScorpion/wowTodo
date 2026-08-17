@@ -18,6 +18,10 @@ Triage and fix plan: prompt 180.
 | **D3** | P1 | Build | `expo-asset` not a direct dependency (`expo-doctor` 17/18) | OPEN |
 | **D4** | P1 | Release | Release build is debug-signed (Expo template default) | OPEN |
 | **DF-1** | P1 | Branches | A task containing a branched todo **cannot be deleted** — 409, silently rolled back with no message | OPEN |
+| **VE-1** | P1 | AI prompt | **Named weekdays resolve to the wrong date** (9/9 deterministic) — reminders fire on the wrong day | OPEN |
+| **VE-2** | P1 | AI prompt | Fabricates task lists from ambiguous/non-task speech; cannot ask for clarification | OPEN |
+| **VE-3** | P2 | AI prompt | `[LANGUAGE: Hindi]` ignored for romanised Hinglish input — returns English | OPEN |
+| **VE-4** | P2 | AI prompt | Over-decomposes atomic tasks and invents unstated specifics | OPEN |
 | **F6** | P2 | Hardening | 3 `SECURITY DEFINER` functions lack `SET search_path` | OPEN |
 | **DF-2** | P2 | Validation | Empty titles accepted; render as blank ghost cards | OPEN |
 | **DF-3** | P2 | Product | Analytics is a reachable "Coming soon" stub | OPEN |
@@ -32,6 +36,32 @@ Triage and fix plan: prompt 180.
 ---
 
 ## Details for the highest-severity items
+
+### VE-1 — P1 · Named weekdays resolve to the wrong date
+
+`buildUserMessage` sends `[CURRENT DATE: 2026-08-17]` with **no weekday**, and the model
+cannot reliably derive day-of-week from a bare date. Verified deterministic — 3 runs each,
+9/9 wrong:
+
+| Input | Got | Weekday | Correct |
+|---|---|---|---|
+| "next Monday" | 2026-08-21 | Friday | 2026-08-24 |
+| "this Saturday" | 2026-08-20 | Thursday | 2026-08-22 |
+| "on Friday" | 2026-08-19 | Wednesday | 2026-08-21 |
+
+Pure relative offsets are fine ("today" ✅, "next month" ✅) — only *named weekdays* fail.
+For a reminder app this means reminders fire on the wrong day. Origin is the prompt layer,
+not the model. Full analysis:
+[VOICE_EVALUATION_BASELINE.md](VOICE_EVALUATION_BASELINE.md).
+
+### VE-2 — P1 · Fabrication instead of clarification
+
+The system prompt mandates *"Prefer being helpful over asking for clarification"* and
+*"Never refuse to generate output"*. So *"The weather is really nice today and I feel
+happy"* becomes a 4-todo task list, and *"Sort out the thing for the place"* becomes 5
+invented steps. There is also **no schema field** in which a clarifying question could be
+returned — the pipeline is structurally incapable of asking one. Primary constraint for
+the prompt-210 agentic design.
 
 ### DF-1 — P1 · Branched todos make their task undeletable
 
