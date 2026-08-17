@@ -281,9 +281,17 @@ function SearchResultRow({
                 <AppText size="sm" weight="medium">
                     {user.full_name || 'No name'}
                 </AppText>
-                <AppText size="xs" variant="muted">
-                    {user.email}
-                </AppText>
+                {/*
+                  * Email is only returned for an exact-email lookup (migration 0013 /
+                  * finding F5) — name searches deliberately withhold it so the user
+                  * base cannot be harvested. Render the row without it in that case
+                  * rather than showing an empty line.
+                  */}
+                {user.email ? (
+                    <AppText size="xs" variant="muted">
+                        {user.email}
+                    </AppText>
+                ) : null}
             </YStack>
             <AnimatedPressable onPress={onShare} scaleDown={0.9}>
                 <XStack

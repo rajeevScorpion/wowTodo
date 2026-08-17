@@ -10,12 +10,13 @@ gate; this document exists to change that.
 |---|---|---|---|
 | Types | `tsc --noEmit` | whole app | ✅ 0 errors |
 | Unit | jest + jest-expo | reminder scheduler only | ✅ 12/12 |
-| Config | `expo-doctor` | 18 checks | 17/18 |
-| Migrations | `db:reset:local` | forward replay of all 12 | ✅ |
-| Integration | — | none | ❌ |
+| Config | `expo-doctor` | 18 checks | 16/18 — `expo-asset` peer dep + upstream patch drift |
+| Migrations | `db:reset:local` | forward replay of all 13 | ✅ |
+| Authorisation | `npm run verify:rls` | share-recipient scope + user search, both directions | ✅ 17/17 |
+| Integration | — | none beyond the above | ❌ |
 | Component | — | none | ❌ |
 | E2E | — | none | ❌ |
-| Rollback | — | none — 0 rollbacks ever executed | ❌ |
+| Rollback | manual | 1 of 10 executed (0013, full loop) | ⚠️ |
 
 ## What the existing tests actually cover
 
@@ -41,11 +42,10 @@ caught two of the three.
 ## Priorities
 
 1. **Smoke test** — build, install, launch, assert a rendered screen and no fatal in logcat.
-2. **RLS integration tests** — the F1/F5 class of defect is invisible to every current gate
-   but trivially testable with two JWTs against the local mirror. The manual probes used in
-   the 120 audit should become a permanent suite.
-3. **Rollback verification** — forward → verify → rollback → verify → reapply on the local
-   mirror. Untested rollbacks are assumptions, not safety nets.
+2. ~~**RLS integration tests**~~ — ✅ **done**: `npm run verify:rls`, 17 checks with two real
+   users through PostgREST. Extend it whenever a policy changes.
+3. **Rollback verification** — done once for `0013`; the 9 historical rollbacks remain
+   unexecuted. Untested rollbacks are assumptions, not safety nets.
 4. **Voice evaluation baseline** — prompt 160.
 5. **Component tests** for the review screen and reminder UI.
 

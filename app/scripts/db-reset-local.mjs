@@ -31,6 +31,10 @@ const ORDER = [
     'supabase_migration_sharing_peek.sql',
     'supabase_migration_bugfix_triggers.sql',
     'supabase_migration_get_profiles_by_ids.sql',
+    // 0013 onward follow the numbered migration standard — see
+    // docs/data/MIGRATION_REGISTER.md. Numbered files sort correctly, so new
+    // migrations append here in numeric order.
+    '0013_restrict_shared_todo_updates_and_user_search.sql',
 ];
 
 function sh(cmd, args, opts = {}) {

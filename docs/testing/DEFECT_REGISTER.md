@@ -8,11 +8,11 @@ Triage and fix plan: prompt 180.
 
 | ID | Sev | Area | Summary | Status |
 |---|---|---|---|---|
-| **F1** | **P0** | RLS | Share recipient can rewrite and seize ownership of the owner's todo | OPEN — needs owner decision |
+| ~~F1~~ | ~~P0~~ | RLS | Share recipient can rewrite and seize ownership of the owner's todo | ✅ **FIXED** — migration 0013 |
 | **F2** | P1 | Auth | Sign-out leaves previous user's cached data and reminders on device | OPEN |
 | **F3** | P1 | Backend | `ai-proxy` has no rate limit or body-size cap | OPEN |
 | **F4** | P1 | Reliability | No timeouts or cancellation anywhere | OPEN |
-| **F5** | P1 | Privacy | `search_users` discloses every user's email | OPEN |
+| ~~F5~~ | ~~P1~~ | Privacy | `search_users` discloses every user's email | ✅ **FIXED** — migration 0013 |
 | **D1** | P1 | Play policy | No in-app account deletion path | OPEN |
 | **D2** | P1 | Play policy | No privacy policy — blocks the Data Safety form | OPEN |
 | **D3** | P1 | Build | `expo-asset` not a direct dependency (`expo-doctor` 17/18) | OPEN |
@@ -28,7 +28,7 @@ Triage and fix plan: prompt 180.
 | **DF-4** | P2 | Sharing | Share-accepted notification says "Someone" instead of the actor's name | OPEN |
 | **DF-5** | P2 | Validation | No title length limit (5000 chars accepted; UI truncates safely) | OPEN |
 | **DF-6** | P3 | Branches | `is_branched` is client-maintained, not enforced by a trigger | OPEN |
-| **F7** | P2 | Migrations | 3 migrations unpaired; 0 rollbacks ever executed | OPEN |
+| **F7** | P2 | Migrations | 3 migrations unpaired; 9 of 10 rollbacks still unexecuted | OPEN |
 | **F8** | P2 | Data | `in_app_notifications` has no DELETE policy or retention | OPEN |
 | **D5** | P2 | Secrets | OpenAI/Gemini keys need rotation (exposed in retired `goodtodo` history) | OPEN — owner |
 | **D6** | P3 | Docs | `app/CLAUDE.md` stale: lists `expo-av`, claims no test runner | OPEN |
@@ -81,7 +81,7 @@ and nothing says so. The delete affordance is offered unconditionally —
 
 Full evidence: [150 audit](../audits/150_FEATURE_REGRESSION_AND_EDGE_CASE_AUDIT.md).
 
-### F1 — P0 · Recipient can seize the owner's todo
+### F1 — P0 · Recipient can seize the owner's todo  ✅ FIXED (migration 0013)
 
 The `todos` recipient-UPDATE policy uses `is_task_shared_with(task_id, auth.uid())` for
 both `USING` and `WITH CHECK`. It constrains **who** may update, never **which columns**,
@@ -96,8 +96,11 @@ PATCH /todos {"user_id":"<recipient uuid>"}     → 200 applied
 Silent, permanent, no audit trail, no notification. Also allows rewriting `due_date`, and
 moving `user_id` re-points reminder scheduling.
 
-**Blocked on an owner decision:** is recipient *editing* intended collaboration (scope it
-properly) or a bug (lock to `completed` only)? The answer changes the fix.
+**Resolved.** Owner decision: recipient editing was a bug, not a feature. A `BEFORE UPDATE`
+trigger now restricts non-owners to the `completed` column, comparing the whole row via
+`to_jsonb` minus the allowed keys — so columns added by future migrations are protected by
+default rather than silently becoming writable. Verified 17/17 in `npm run verify:rls`:
+recipients can still toggle completion, owners are unaffected.
 
 ### F2 — P1 · Sign-out leaves data behind
 
@@ -109,14 +112,18 @@ properly) or a bug (lock to `completed` only)? The answer changes the fix.
    showing their private todo titles on the lock screen.
 3. `clearReminderSettingsCache()` exists with **zero call sites** repo-wide.
 
-### F5 — P1 · Email enumeration
+### F5 — P1 · Email enumeration  ✅ FIXED (migration 0013)
 
 `search_users` is `SECURITY DEFINER`, reads `auth.users`, matches `ILIKE '%q%'` on name
 **and** email, and returns email. A brand-new account with zero shares searching `"@"`
 returned every registered user's email. `LIMIT 20` caps a page, not the attack.
 
-RLS on `user_profiles` is correct and returns `[]`; this function bypasses it by design.
-Exact-match-only lookup would preserve email-based sharing and close the oracle.
+RLS on `user_profiles` is correct and returns `[]`; this function bypassed it by design.
+
+**Resolved.** Exact-email lookup still returns the address (the caller already has it);
+name search returns the profile with `email` NULL; minimum 3-character query enforced
+server-side. Both search modes in the UI still work, and shares are created with
+`recipient_id` rather than the address, so nothing in the flow depended on it.
 
 ---
 
@@ -133,3 +140,5 @@ Exact-match-only lookup would preserve email-based sharing and close the oracle.
 | — | "Cannot use shared object that was already released" on unmount | `c3ce5c6` |
 | — | `42501` after local reset — `drop schema` destroyed Supabase DEFAULT PRIVILEGES | `c3ce5c6` |
 | — | Deprecated `expo-av` | `c3ce5c6` |
+| F1 | **P0** — share recipient could rewrite and seize the owner's todo. Fixed by a `BEFORE UPDATE` trigger restricting non-owners to `completed`; verified the recipient can still toggle completion and the owner is unaffected | migration `0013` |
+| F5 | **P1** — `search_users` email harvesting. Exact-email lookup still returns the address (the caller already has it); name search returns the profile with `email` NULL. Minimum 3-character query enforced server-side | migration `0013` |

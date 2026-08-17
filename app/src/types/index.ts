@@ -92,7 +92,13 @@ export type UserSearchResult = {
     user_id: string;
     full_name: string | null;
     avatar_url: string | null;
-    email: string;
+    /**
+     * Only populated for an exact-email lookup. Name searches return null so that
+     * name enumeration cannot be escalated into email harvesting — see migration
+     * 0013 and finding F5. Postgres reports this column as non-null, so the
+     * generated `Database` type cannot express it; this is the accurate shape.
+     */
+    email: string | null;
 };
 
 // Supabase Database type.

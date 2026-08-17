@@ -26,7 +26,9 @@ Each item below was observed running, not inferred from code.
 | Local Supabase mirrors cloud | 8 tables / 13 functions / 17 policies, diffed against linked project |
 | Type safety | `npm run typecheck` → 0 errors |
 | Unit tests | `npm test` → 12/12 passing (reminder scheduler) |
-| Migrations replay | `npm run db:reset:local` applies all 12 cleanly |
+| Migrations replay | `npm run db:reset:local` applies all 13 cleanly |
+| Authorisation suite | `npm run verify:rls` → 17/17, two real users through PostgREST |
+| Rollback verified | 0013 completed forward → verify → rollback → verify → reapply |
 | Play target API | release manifest `targetSdkVersion=36` — meets the 31 Aug 2026 rule |
 
 ## What is broken or open
@@ -35,11 +37,11 @@ See [DEFECT_REGISTER.md](../testing/DEFECT_REGISTER.md) for the full list.
 
 | ID | Sev | Summary |
 |---|---|---|
-| F1 | **P0** | Share recipient can rewrite and seize ownership of the owner's todo |
+| ~~F1~~ | ~~P0~~ | ✅ **FIXED** (migration 0013) — recipient can no longer rewrite or seize a todo |
 | F2 | P1 | Sign-out leaves previous user's cached data and reminders on the device |
 | F3 | P1 | `ai-proxy` has no rate limit or body-size cap — billing abuse risk |
 | F4 | P1 | No timeouts or cancellation anywhere — stalled AI call hangs the UI |
-| F5 | P1 | `search_users` discloses every registered user's email |
+| ~~F5~~ | ~~P1~~ | ✅ **FIXED** (migration 0013) — email harvesting closed |
 | — | P1 | No in-app account deletion path (Google Play requirement) |
 | F6–F8 | P2 | `search_path` hardening, migration standard, unbounded notifications |
 
@@ -47,8 +49,9 @@ See [DEFECT_REGISTER.md](../testing/DEFECT_REGISTER.md) for the full list.
 
 Honest gaps — not claims of breakage.
 
-- **8 of 14 app screens** have never been exercised: analytics, people, people-detail,
-  shared, notifications, profile-view, review, branch. Scheduled for prompt 150.
+- **Screens now render-verified** (prompt 150): analytics, people, shared, notifications,
+  profile, settings, tasks — 0 JS errors, process stable. Still unexercised *interactively*:
+  people-detail, profile-view, review, branch.
 - **Physical device.** All runtime evidence is from an Android emulator.
 - **iOS.** Never built or run.
 - **Offline behaviour.** Cache persists and `refetchOnReconnect` is set, but mutation
@@ -66,7 +69,11 @@ Honest gaps — not claims of breakage.
 
 ## Immediate next actions
 
-1. Complete prompt-pack 150 → 190 (feature audit, voice baseline, Play readiness, triage, gate).
-2. Fix F1 — requires an owner decision on whether recipient *editing* is intended.
-3. Rotate OpenAI and Gemini API keys (exposed in the retired `goodtodo` git history).
-4. Add `expo-asset` as a direct dependency (`expo-doctor` 17/18 → 18/18).
+1. ✅ Prompt pack 100–190 complete; gate **PASS**. See
+   [PROMPT_PACK_EXECUTION_INDEX](../PROMPT_PACK_EXECUTION_INDEX.md).
+2. ✅ Slice 1 done — F1 and F5 closed by migration 0013.
+3. **Start the Play closed test today** — the account is personal and post-Nov-2023, so the
+   12-tester / 14-day rule applies. It is the critical path and no engineering shortens it.
+4. Rotate OpenAI and Gemini API keys, then deploy `ai-proxy` with the rotated keys
+   (Slice 2) — until then the core feature returns `503` in production.
+5. Continue [RELEASE_PLAN.md](RELEASE_PLAN.md) slices 3–8.

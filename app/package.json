@@ -12,7 +12,8 @@
     "postinstall": "patch-package",
     "gen:types": "supabase gen types typescript --local > src/types/database.ts",
     "test": "jest",
-    "test:watch": "jest --watch"
+    "test:watch": "jest --watch",
+    "verify:rls": "node scripts/verify-rls.mjs"
   },
   "dependencies": {
     "@react-native-async-storage/async-storage": "2.2.0",

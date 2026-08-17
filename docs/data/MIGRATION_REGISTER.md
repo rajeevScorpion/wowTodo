@@ -12,12 +12,13 @@ no mandatory header. The standard states *"Do not change historical migration fi
 simply to conform"*, so they are **grandfathered as 0001–0012** for register purposes
 only — filenames are not being rewritten.
 
-**The next new migration must be `0013` and must fully comply** with the header, pairing
-and register rules.
+**0013 is applied.** The next new migration must be **`0014`** and must fully comply with
+the header, pairing and register rules.
 
 ## Register
 
-Forward test = replays cleanly via `db:reset:local`. Rollback test = never executed.
+Forward test = replays cleanly via `db:reset:local`. Rollback test = actually executed
+against the local mirror and verified to restore prior behaviour.
 
 | # | File | Purpose | Depends on | Rollback | Fwd | Rbk |
 |---|---|---|---|---|---|---|
@@ -33,18 +34,19 @@ Forward test = replays cleanly via `db:reset:local`. Rollback test = never execu
 | 0010 | `supabase_migration_sharing_peek.sql` | `peek_shared_task_todos` | 0006 | `supabase_rollback_sharing_peek.sql` | ✅ | ⬜ |
 | 0011 | `supabase_migration_bugfix_triggers.sql` | Fix share triggers when profile row absent | 0006 | `supabase_rollback_bugfix_triggers.sql` | ✅ | ⬜ |
 | 0012 | `supabase_migration_get_profiles_by_ids.sql` | Batch profile lookup RPC | 0003 | `supabase_rollback_get_profiles_by_ids.sql` | ✅ | ⬜ |
+| **0013** | `0013_restrict_shared_todo_updates_and_user_search.sql` | Fix F1 (recipient could seize a todo) and F5 (email harvesting) | 0006, 0008 | `0013_…rollback.sql` | ✅ | ✅ **tested** |
 
 ## Open items
 
 | Item | Severity | Detail |
 |---|---|---|
 | 3 migrations have **no rollback** | P2 | 0002, 0007, 0008. Defect **F7** |
-| 0 rollbacks have been **executed** | P2 | Untested rollbacks are assumptions, not safety nets. The standard's verification loop (forward → verify → rollback → verify → reapply) has never run |
-| 0 migrations carry the mandatory header | P2 | Grandfathered; applies to 0013+ |
+| 9 of 10 rollbacks remain **unexecuted** | P2 | Untested rollbacks are assumptions, not safety nets. **0013 is the first to complete the full loop** (forward → verify 17/17 → rollback → confirm prior behaviour restored → reapply → verify 17/17). The historical ones still have not run |
+| 12 of 13 migrations lack the mandatory header | P2 | Grandfathered. **0013 carries it in full** and is the template for 0014+ |
 
 ## Rules for new migrations
 
-1. Number `0013` onward, permanent, never reused.
+1. Number `0014` onward, permanent, never reused.
 2. Mandatory forward **and** rollback header (see the standard).
 3. A truthful rollback is required. If reversal would destroy production data, use
    expand → backfill → verify → contract instead of pretending rollback is safe.
