@@ -35,19 +35,19 @@ Verification legend:
 
 | Feature | Status | Entry point | Notes |
 |---|---|---|---|
-| Task groups | 🔍 CODE-ONLY | [features/groups/api.ts](../../app/src/features/groups/api.ts) | AI suggests group at creation |
-| Branches | 🔍 CODE-ONLY | [branch.tsx](<../../app/app/(app)/branch.tsx>) | 3 DB triggers sync parent completion; see [BRANCHES_CONTEXT.md](../../app/context/BRANCHES_CONTEXT.md) |
-| Sharing — send | 🔍 CODE-ONLY | [features/sharing/api.ts](../../app/src/features/sharing/api.ts) | see [SHARING_IMPLEMENTATION.md](../../app/context/SHARING_IMPLEMENTATION.md) |
-| Sharing — accept/reject | 🔍 CODE-ONLY | [shared.tsx](<../../app/app/(app)/shared.tsx>) | status workflow in DB triggers |
-| Sharing — peek before accept | 🔍 CODE-ONLY | `peek_shared_task_todos` RPC | |
+| Task groups | ✅ VERIFIED | [features/groups/api.ts](../../app/src/features/groups/api.ts) | AI suggests group at creation |
+| Branches | ⚠️ DEFECT | [branch.tsx](<../../app/app/(app)/branch.tsx>) | 3 DB triggers sync parent completion; see [BRANCHES_CONTEXT.md](../../app/context/BRANCHES_CONTEXT.md) |
+| Sharing — send | ✅ VERIFIED | [features/sharing/api.ts](../../app/src/features/sharing/api.ts) | see [SHARING_IMPLEMENTATION.md](../../app/context/SHARING_IMPLEMENTATION.md) |
+| Sharing — accept/reject | ✅ VERIFIED | [shared.tsx](<../../app/app/(app)/shared.tsx>) | status workflow in DB triggers |
+| Sharing — peek before accept | ✅ VERIFIED | `peek_shared_task_todos` RPC | |
 | Sharing — recipient edits | ⚠️ DEFECT | RLS policy | **F1 (P0)** — recipient can rewrite title and seize `user_id` |
 | User search | ⚠️ DEFECT | `search_users` RPC | **F5 (P1)** — discloses all users' emails |
-| In-app notifications | 🔍 CODE-ONLY | [notifications.tsx](<../../app/app/(app)/notifications.tsx>) | Realtime-backed; no DELETE policy (**F8**) |
+| In-app notifications | ✅ VERIFIED | [notifications.tsx](<../../app/app/(app)/notifications.tsx>) | Realtime-backed; no DELETE policy (**F8**) |
 | Realtime sync | 🔍 CODE-ONLY | [useRealtimeSharing.ts](../../app/src/features/sharing/useRealtimeSharing.ts) | 4 channels; `todos`, `shares`, `in_app_notifications` published |
 | People directory | 🔍 CODE-ONLY | [people.tsx](<../../app/app/(app)/people.tsx>) | |
-| Analytics dashboard | 🔍 CODE-ONLY | [analytics.tsx](<../../app/app/(app)/analytics.tsx>) | |
+| Analytics dashboard | ❌ STUB | [analytics.tsx](<../../app/app/(app)/analytics.tsx>) | **"Coming soon" placeholder — not implemented (DF-3)** |
 | Review screen | 🔍 CODE-ONLY | [review.tsx](<../../app/app/(app)/review.tsx>) | Confirms AI output before saving |
-| User profiles | 🔍 CODE-ONLY | [profile.tsx](<../../app/app/(app)/profile.tsx>) | |
+| User profiles | ✅ RENDERS | [profile.tsx](<../../app/app/(app)/profile.tsx>) | |
 | Theming | ✅ VERIFIED | [design-system/](../../app/src/design-system/) | Neumorphic, light/dark/system |
 
 ## Missing for release

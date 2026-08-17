@@ -17,7 +17,13 @@ Triage and fix plan: prompt 180.
 | **D2** | P1 | Play policy | No privacy policy — blocks the Data Safety form | OPEN |
 | **D3** | P1 | Build | `expo-asset` not a direct dependency (`expo-doctor` 17/18) | OPEN |
 | **D4** | P1 | Release | Release build is debug-signed (Expo template default) | OPEN |
+| **DF-1** | P1 | Branches | A task containing a branched todo **cannot be deleted** — 409, silently rolled back with no message | OPEN |
 | **F6** | P2 | Hardening | 3 `SECURITY DEFINER` functions lack `SET search_path` | OPEN |
+| **DF-2** | P2 | Validation | Empty titles accepted; render as blank ghost cards | OPEN |
+| **DF-3** | P2 | Product | Analytics is a reachable "Coming soon" stub | OPEN |
+| **DF-4** | P2 | Sharing | Share-accepted notification says "Someone" instead of the actor's name | OPEN |
+| **DF-5** | P2 | Validation | No title length limit (5000 chars accepted; UI truncates safely) | OPEN |
+| **DF-6** | P3 | Branches | `is_branched` is client-maintained, not enforced by a trigger | OPEN |
 | **F7** | P2 | Migrations | 3 migrations unpaired; 0 rollbacks ever executed | OPEN |
 | **F8** | P2 | Data | `in_app_notifications` has no DELETE policy or retention | OPEN |
 | **D5** | P2 | Secrets | OpenAI/Gemini keys need rotation (exposed in retired `goodtodo` history) | OPEN — owner |
@@ -26,6 +32,24 @@ Triage and fix plan: prompt 180.
 ---
 
 ## Details for the highest-severity items
+
+### DF-1 — P1 · Branched todos make their task undeletable
+
+`tasks.parent_todo_id → todos.id` is **`ON DELETE RESTRICT`** while
+`todos.task_id → tasks.id` is `CASCADE`. Deleting a task cascades into its todos and is
+then blocked by the branch reference:
+
+```
+DELETE /tasks?id=eq.<task with a branched todo>  → HTTP 409  23503
+```
+
+`useDeleteTask`/`useDeleteTodo` optimistically remove the row, the request fails, and
+`onError` rolls back **with no toast or alert** (`_err` is unused). The user sees the task
+vanish and silently reappear; it is permanently undeletable until the branch is unlinked,
+and nothing says so. The delete affordance is offered unconditionally —
+`TodoItem.tsx:105` uses `is_branched` only to gate the checkbox.
+
+Full evidence: [150 audit](../audits/150_FEATURE_REGRESSION_AND_EDGE_CASE_AUDIT.md).
 
 ### F1 — P0 · Recipient can seize the owner's todo
 
