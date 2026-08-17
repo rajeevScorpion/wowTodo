@@ -1,8 +1,40 @@
-node_modules/
-build/
-dist/
-coverage/
-.DS_Store
-*.log
-.env*
+# ─── Secrets — never commit ────────────────────────────────────────────
+# Root-level rules apply to every subdirectory, including app/ and web/.
+.env
+.env.*
 !.env.example
+*.jks
+*.keystore
+*.p8
+*.p12
+*.pem
+*.key
+*.mobileprovision
+google-services.json
+GoogleService-Info.plist
+service-account*.json
+
+# ─── Dependencies ──────────────────────────────────────────────────────
+node_modules/
+
+# ─── Build output ──────────────────────────────────────────────────────
+dist/
+build/
+web-build/
+coverage/
+
+# ─── Expo / React Native (app/) ────────────────────────────────────────
+.expo/
+.tamagui/
+expo-env.d.ts
+.kotlin/
+.metro-health-check*
+*.orig.*
+
+# ─── Logs, OS, editor ──────────────────────────────────────────────────
+*.log
+npm-debug.*
+yarn-debug.*
+yarn-error.*
+*.tsbuildinfo
+.DS_Store
