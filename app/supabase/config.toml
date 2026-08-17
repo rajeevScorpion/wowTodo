@@ -98,7 +98,15 @@ port = 55324
 # sender_name = "Admin"
 
 [storage]
-enabled = true
+# Disabled: WowTodo uses no storage buckets. Verified in the prompt-120 audit —
+# `select id, public from storage.buckets` returns 0 rows, and no source file
+# references `supabase.storage`. Avatars are stored as URLs on user_profiles.
+#
+# Keeping it enabled also broke local startup: the cached storage-api image
+# fails its own migration step ("Migration optimize-existing-functions-again
+# not found") against the pinned CLI. Re-enable this if buckets are ever
+# introduced, and pin a compatible storage-api image at the same time.
+enabled = false
 # The maximum file size allowed (e.g. "5MB", "500KB").
 file_size_limit = "50MiB"
 

@@ -22,8 +22,24 @@
 
 const OPENAI_CHAT_URL = 'https://api.openai.com/v1/chat/completions';
 const OPENAI_TRANSCRIBE_URL = 'https://api.openai.com/v1/audio/transcriptions';
-const GEMINI_URL =
-    'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent';
+// gemini-2.0-flash was retired by Google and returns 404 "no longer available", which
+// silently killed the fallback: when OpenAI failed the app had nothing behind it and
+// surfaced only the generic "Could not reach the AI service".
+//
+// Measured against a freshly issued key on 2026-08-17:
+//   gemini-2.5-flash / -flash-lite   404 — "no longer available to NEW users"
+//   gemini-3.1-flash-lite            200 but ~43s — unusable while F4 (no timeout) is open
+//   gemini-3-flash-preview           200, ~8s, valid task JSON
+//   gemini-flash-latest              intermittent: 200,503,200 then 503,503
+//
+// Neither single choice is safe. The alias is immune to retirement but flaky under load;
+// the pinned preview model is fast and reliable today but will eventually be retired the
+// same way 2.0-flash was. So try the alias first and fall back to the pinned model,
+// giving one route past each failure mode. Order matters: alias first so that when
+// Google promotes a new flash model this picks it up without a code change.
+const GEMINI_MODELS = ['gemini-flash-latest', 'gemini-3-flash-preview'];
+const geminiUrl = (model: string) =>
+    `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`;
 
 /** Models this proxy is willing to bill for. */
 const ALLOWED_CHAT_MODELS = new Set(['gpt-4o-mini']);
@@ -129,14 +145,25 @@ Deno.serve(async (req: Request) => {
                 return json({ error: 'GEMINI_API_KEY is not configured on the server' }, 503);
             }
 
-            const upstream = await fetch(`${GEMINI_URL}?key=${apiKey}`, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(body),
-            });
+            // Try each model in turn. This is the *fallback* provider, so its job is to
+            // work at all; a single hardcoded model is the wrong shape for that. Both
+            // observed failure modes are survivable this way:
+            //   404 — the model was retired (silent and permanent otherwise)
+            //   503 — transient capacity ("experiencing high demand")
+            // Any other status is returned as-is: a 400 means the caller's request is
+            // wrong and retrying a different model would only mask it.
+            let upstream: Response | null = null;
+            for (const model of GEMINI_MODELS) {
+                upstream = await fetch(`${geminiUrl(model)}?key=${apiKey}`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(body),
+                });
+                if (upstream.status !== 404 && upstream.status !== 503) break;
+            }
 
-            return new Response(await upstream.text(), {
-                status: upstream.status,
+            return new Response(await upstream!.text(), {
+                status: upstream!.status,
                 headers: { ...CORS_HEADERS, 'Content-Type': 'application/json' },
             });
         }
