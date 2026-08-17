@@ -30,7 +30,8 @@ Triage and fix plan: prompt 180.
 | **DF-6** | P3 | Branches | `is_branched` is client-maintained, not enforced by a trigger | OPEN |
 | **F7** | P2 | Migrations | 3 migrations unpaired; 9 of 10 rollbacks still unexecuted | OPEN |
 | **F8** | P2 | Data | `in_app_notifications` has no DELETE policy or retention | OPEN |
-| **D5** | P2 | Secrets | OpenAI/Gemini keys need rotation (exposed in retired `goodtodo` history) | OPEN — owner |
+| ~~D5~~ | ~~P2~~ | Secrets | OpenAI/Gemini keys rotated **and old keys revoked** | ✅ **DONE** — verified: the old key now returns 401 |
+| **D5b** | P1 | Secrets | Cloud Edge Function secrets still unset — production AI returns `503` | OPEN — needs deploy |
 | **D6** | P3 | Docs | `app/CLAUDE.md` stale: lists `expo-av`, claims no test runner | OPEN |
 
 ---
@@ -144,5 +145,9 @@ server-side. Both search modes in the UI still work, and shares are created with
 | — | "Cannot use shared object that was already released" on unmount | `c3ce5c6` |
 | — | `42501` after local reset — `drop schema` destroyed Supabase DEFAULT PRIVILEGES | `c3ce5c6` |
 | — | Deprecated `expo-av` | `c3ce5c6` |
+| VE-1 | Named weekdays resolved to the wrong date (0/9 → 9/9) | `4558887` |
+| INF-1 | **Gemini fallback was dead** — `gemini-2.0-flash` retired by Google (404). When OpenAI failed there was no fallback, only a generic error. Proxy now tries `gemini-flash-latest`, then `gemini-3-flash-preview`, retrying on 404/503 only | `f6a7f3c` |
+| INF-2 | Supabase CLI was unpinned and resolved by npm cache state; clearing the cache pulled 2.114.0 and broke the local stack | `f6a7f3c` |
+| INF-3 | storage-api blocked local startup; unused service disabled | `f6a7f3c` |
 | F1 | **P0** — share recipient could rewrite and seize the owner's todo. Fixed by a `BEFORE UPDATE` trigger restricting non-owners to `completed`; verified the recipient can still toggle completion and the owner is unaffected | migration `0013` |
 | F5 | **P1** — `search_users` email harvesting. Exact-email lookup still returns the address (the caller already has it); name search returns the profile with `email` NULL. Minimum 3-character query enforced server-side | migration `0013` |

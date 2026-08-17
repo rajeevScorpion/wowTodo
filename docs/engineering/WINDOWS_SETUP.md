@@ -13,6 +13,39 @@ $env:ANDROID_HOME = "D:\AndriodSDK"
 $env:PATH = "$env:JAVA_HOME\bin;$env:ANDROID_HOME\platform-tools;$env:ANDROID_HOME\emulator;$env:PATH"
 ```
 
+## Docker storage lives on E:
+
+`C:` filled to 0.2 GB free on 2026-08-17, which wedged the Docker daemon. Docker's 31 GB
+WSL data directory was moved to `E:\DockerData\wsl`, with a **directory junction** left at
+the original path:
+
+```
+C:\Users\User\AppData\Local\Docker\wsl  ->  E:\DockerData\wsl
+```
+
+Docker is unaware of the move — it opens the same path, so no Docker setting depends on
+it. To reverse: stop Docker, delete the junction, move the folder back. Do **not** delete
+the junction while Docker is running. If Docker is reinstalled or factory-reset, the
+junction may be replaced by a real directory on `C:` and the move must be redone.
+
+## The Supabase CLI is pinned — avoid bare `npx supabase`
+
+`supabase` is an **exact** devDependency at `2.40.7`. There was previously no pin, so
+`npx supabase` silently used whatever npm had cached. Clearing the npm cache to free disk
+space caused npx to fetch `2.114.0`, which references container image tags that no longer
+resolve — breaking the entire local stack. The environment had been reproducible only by
+accident of cache state.
+
+Use `./node_modules/.bin/supabase` or an npm script. A bare `npx supabase` may still fetch
+a newer CLI.
+
+## Storage service is disabled
+
+`[storage] enabled = false` in `supabase/config.toml`. WowTodo uses no buckets (verified
+in the prompt-120 audit), and the storage-api container fails its own migration step
+against the pinned CLI, which blocks the whole stack from starting. Re-enable only
+alongside a compatible pinned image.
+
 ## Local Supabase
 
 Ports are remapped to **55321–55329**; the default 54xxx range collides with another
