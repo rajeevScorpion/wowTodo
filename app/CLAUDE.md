@@ -27,8 +27,17 @@ npm run db:reset:local  # replay all migrations into the local Supabase DB
 npm run gen:types       # regenerate src/types/database.ts from the local schema
 ```
 
-No test runner or linter is configured yet. `npm run typecheck` is the current
-correctness gate and passes with zero errors.
+```bash
+npm test                # jest — 12 tests over the reminder scheduler
+npm run test:watch
+```
+
+`npm run typecheck` and `npm test` are the current correctness gates and both pass.
+No linter is configured yet.
+
+> A green typecheck is **not** evidence the app launches. Native module problems
+> (see `overrides` below) are invisible to `tsc` and jest — they only surface at
+> runtime. Confirm with a screenshot or logcat before reporting a build as working.
 
 ### Local Supabase
 
@@ -96,9 +105,20 @@ $env:PATH = "$env:JAVA_HOME\bin;$env:ANDROID_HOME\platform-tools;$env:ANDROID_HO
   - `branchPrompt.ts` — Prompt for branch task generation
   - `openai.ts` — OpenAI Chat Completions (gpt-4o-mini)
   - `gemini.ts` — Gemini API fallback (gemini-2.0-flash)
-  - `whisper.ts` — OpenAI Whisper audio transcription
-  - `index.ts` — Orchestrator: tries OpenAI first, falls back to Gemini
-- `services/voice.ts` — Audio recording wrapper using expo-av
+  - `whisper.ts` — OpenAI Whisper (`whisper-1`) audio transcription
+  - `proxy.ts` — routes every AI call through the `ai-proxy` Edge Function
+  - `index.ts` — Orchestrator: tries OpenAI first, falls back to Gemini **on failure**
+
+**No API keys exist on the client.** All AI calls go through
+`supabase/functions/ai-proxy/`, which verifies the user JWT and allow-lists models
+(`gpt-4o-mini`, `whisper-1`, `gemini-2.0-flash`). Never reintroduce an
+`EXPO_PUBLIC_*_API_KEY` — that prefix is inlined into the shipped bundle.
+
+**Transcription is Whisper only.** Do not add `expo-speech`, `@react-native-voice`,
+`SpeechRecognizer` or any on-device recogniser — this is an explicit owner decision
+based on accuracy.
+- `services/voice.ts` — Audio session wrapper using **expo-audio** (expo-av was deprecated and removed)
+- `hooks/useVoiceRecording.ts` — **the single source of truth for voice capture**; `CreateTaskInput` and the branch screen both consume it
 - `services/reminders/` — Reminder scheduling and notification system:
   - `scheduler.ts` — Core scheduling logic
   - `settingsCache.ts` — Cache layer for reminder settings
@@ -192,13 +212,13 @@ All Supabase SQL files are stored in `migrations/`:
 
 Requires `.env` with:
 ```
-EXPO_PUBLIC_SUPABASE_URL=<supabase-project-url>
+EXPO_PUBLIC_SUPABASE_URL=<supabase-url>        # http://10.0.2.2:55321 for the emulator
 EXPO_PUBLIC_SUPABASE_ANON_KEY=<supabase-anon-key>
-EXPO_PUBLIC_OPENAI_API_KEY=<openai-api-key>
-EXPO_PUBLIC_GEMINI_API_KEY=<gemini-api-key>
 ```
 
-At least one AI key (OpenAI or Gemini) is required. OpenAI key is also needed for voice transcription (Whisper).
+AI provider keys are **server-side only**, in `supabase/functions/.env`
+(`OPENAI_API_KEY`, `GEMINI_API_KEY`). Full reference:
+[docs/engineering/ENVIRONMENT_VARIABLES.md](../docs/engineering/ENVIRONMENT_VARIABLES.md).
 
 ## Key Config
 
@@ -209,4 +229,31 @@ At least one AI key (OpenAI or Gemini) is required. OpenAI key is also needed fo
 - `patch-package` auto-applies metro-config Windows ESM fix via postinstall
 - EAS project ID: `cf25c62f-666f-41ff-8fb7-4082e233940e`
 - App scheme: `wowtodo`
-- Plugins: expo-router, expo-secure-store, expo-av, expo-notifications, @react-native-community/datetimepicker
+- Plugins: expo-router, expo-secure-store, **expo-audio**, expo-notifications, @react-native-community/datetimepicker
+- `targetSdk` / `minSdk`: **36 / 24** — already meets Google Play's 31 Aug 2026 requirement
+- `overrides` pins `expo-asset@~12.0.13` and `expo-constants@~18.0.13`. **Do not remove
+  without rebuilding and confirming the app launches** — the skew caused a
+  `NoClassDefFoundError: AnyTypeCache` crash after the splash screen
+
+## Working rules
+
+This project is governed by the prompt pack in
+[`AI_CODER_PROMPTS/WOWTODO_REVIVAL_V1/`](../AI_CODER_PROMPTS/WOWTODO_REVIVAL_V1/).
+Repository documentation: [`docs/`](../docs/) — start with
+[CURRENT_STATE.md](../docs/project/CURRENT_STATE.md) and
+[DEFECT_REGISTER.md](../docs/testing/DEFECT_REGISTER.md).
+
+- **This is a working production app, not greenfield.** Preserve working behaviour. Do not
+  delete, rewrite or reorganise working code to make it look cleaner.
+- **Inspect before concluding.** The repository and verified runtime behaviour are the
+  source of truth. Never claim a build or test that was not run.
+- **Every schema change** needs a numbered forward migration *and* a paired rollback, with
+  the number in both headers, plus a row in
+  [MIGRATION_REGISTER.md](../docs/data/MIGRATION_REGISTER.md). Next number: **0013**.
+  Regenerate types afterwards (`npm run gen:types`).
+- **No broad package upgrades** merely because a newer version exists. See
+  [DEPENDENCY_REGISTER.md](../docs/engineering/DEPENDENCY_REGISTER.md).
+- **Never print or commit secret values.** `.env` and `supabase/.temp/` are gitignored —
+  the latter contains the production DB password.
+- **Verify RLS in both directions** — that the owner can *and* that a non-owner cannot.
+- **Every handoff** needs owner testing steps and rollback/disable steps.

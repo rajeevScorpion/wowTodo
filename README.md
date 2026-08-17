@@ -11,6 +11,15 @@ This repository holds two independent projects that ship together but share no c
 
 Each folder has its own `package.json` and lockfile. There is deliberately **no root `package.json` and no workspace tooling** — hoisting dependencies is a common cause of broken React Native/Expo builds, and the two projects have nothing to share.
 
+## Documentation
+
+Full documentation lives in [`docs/`](docs/). Start with:
+
+- [Current State](docs/project/CURRENT_STATE.md) — what works, what's broken, what's unverified
+- [Product Overview](docs/product/PRODUCT_OVERVIEW.md) — what WowTodo is
+- [Windows Setup](docs/engineering/WINDOWS_SETUP.md) → [Build and Run](docs/engineering/BUILD_AND_RUN.md)
+- [Defect Register](docs/testing/DEFECT_REGISTER.md) — open issues by severity
+
 ## Getting started
 
 Prerequisites: Node.js (this repo has been used with v22.17.0) and, for the app, a working Android SDK + emulator.

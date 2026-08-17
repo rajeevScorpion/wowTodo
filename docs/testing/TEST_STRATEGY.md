@@ -1,0 +1,68 @@
+# Test Strategy
+
+**Honest assessment:** automated coverage is thin and did not catch any of the three
+defects found by actually running the app. Manual verification is currently the primary
+gate; this document exists to change that.
+
+## Current automated coverage
+
+| Layer | Tool | Coverage | Status |
+|---|---|---|---|
+| Types | `tsc --noEmit` | whole app | ✅ 0 errors |
+| Unit | jest + jest-expo | reminder scheduler only | ✅ 12/12 |
+| Config | `expo-doctor` | 18 checks | 17/18 |
+| Migrations | `db:reset:local` | forward replay of all 12 | ✅ |
+| Integration | — | none | ❌ |
+| Component | — | none | ❌ |
+| E2E | — | none | ❌ |
+| Rollback | — | none — 0 rollbacks ever executed | ❌ |
+
+## What the existing tests actually cover
+
+[`scheduler.test.ts`](../../app/src/services/reminders/__tests__/scheduler.test.ts) — 12
+tests over `buildReminderCandidates`, including a 100-todo / 300-candidate scaling test
+asserting the first 60 selected are the 60 earliest. This is the right shape: a pure,
+exported function with the scheduling policy isolated from the OS API.
+
+## The gap that matters
+
+Three real defects reached the running app and were caught **only by the owner using it**:
+
+| Defect | Why automation missed it |
+|---|---|
+| `expo-asset` version skew → native crash after splash | Native module resolution — invisible to `tsc` and jest |
+| Recorder used after release → render error | Unmount lifecycle — needs a mounted component |
+| `42501` after schema reset | Grants, not types or logic |
+
+**Conclusion:** typecheck + unit tests cannot detect launch failures. The single highest-value
+addition is a **smoke test that asserts the app reaches a rendered screen** — it would have
+caught two of the three.
+
+## Priorities
+
+1. **Smoke test** — build, install, launch, assert a rendered screen and no fatal in logcat.
+2. **RLS integration tests** — the F1/F5 class of defect is invisible to every current gate
+   but trivially testable with two JWTs against the local mirror. The manual probes used in
+   the 120 audit should become a permanent suite.
+3. **Rollback verification** — forward → verify → rollback → verify → reapply on the local
+   mirror. Untested rollbacks are assumptions, not safety nets.
+4. **Voice evaluation baseline** — prompt 160.
+5. **Component tests** for the review screen and reminder UI.
+
+## Running
+
+```bash
+cd app
+npm run typecheck
+npm test
+npm test -- --watch
+npx expo-doctor
+```
+
+## Rules
+
+- Never claim a test or build that was not run.
+- A green typecheck is **not** evidence the app launches. Screenshot or logcat evidence is
+  required before reporting a build as working — this was the source of a false "zero
+  crashes" report.
+- Verify RLS in **both** directions: the owner *can* and the non-owner *cannot*.

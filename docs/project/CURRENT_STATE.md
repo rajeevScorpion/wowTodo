@@ -1,0 +1,72 @@
+# Current State
+
+**Last updated:** 2026-08-17 (prompt 140)
+**Commit:** `c3ce5c6`
+**Overall:** The app builds, installs and runs on an Android emulator against a local
+Supabase mirror. The core product loop — voice → transcript → AI-generated todos →
+persisted, reminder-scheduled tasks — is verified working end to end. It is **not yet
+release-ready**: one P0 security defect and several P1s are open.
+
+---
+
+## What is verified working
+
+Each item below was observed running, not inferred from code.
+
+| Capability | Evidence |
+|---|---|
+| Android build + launch | `expo run:android`, app reaches home screen |
+| Google OAuth + email/password sign-in | signed in on emulator |
+| AI task generation from typed text | "How to make mango lassi" → 7 todos persisted |
+| Voice → Whisper → todos | confirmed by owner after enabling emulator mic |
+| `ai-proxy` Edge Function | real OpenAI round trip; 6 abuse controls return 401/400/400/400/503/405 |
+| No AI keys in client bundle | production bundle scan: 0 `sk-`, 0 `AIza`, 1 JWT (public anon key) |
+| RLS both directions | owner sees own row; other user `[]`; anon `[]` |
+| Android notifications | `POST_NOTIFICATIONS` `granted=true` at runtime |
+| Local Supabase mirrors cloud | 8 tables / 13 functions / 17 policies, diffed against linked project |
+| Type safety | `npm run typecheck` → 0 errors |
+| Unit tests | `npm test` → 12/12 passing (reminder scheduler) |
+| Migrations replay | `npm run db:reset:local` applies all 12 cleanly |
+| Play target API | release manifest `targetSdkVersion=36` — meets the 31 Aug 2026 rule |
+
+## What is broken or open
+
+See [DEFECT_REGISTER.md](../testing/DEFECT_REGISTER.md) for the full list.
+
+| ID | Sev | Summary |
+|---|---|---|
+| F1 | **P0** | Share recipient can rewrite and seize ownership of the owner's todo |
+| F2 | P1 | Sign-out leaves previous user's cached data and reminders on the device |
+| F3 | P1 | `ai-proxy` has no rate limit or body-size cap — billing abuse risk |
+| F4 | P1 | No timeouts or cancellation anywhere — stalled AI call hangs the UI |
+| F5 | P1 | `search_users` discloses every registered user's email |
+| — | P1 | No in-app account deletion path (Google Play requirement) |
+| F6–F8 | P2 | `search_path` hardening, migration standard, unbounded notifications |
+
+## What has never been verified
+
+Honest gaps — not claims of breakage.
+
+- **8 of 14 app screens** have never been exercised: analytics, people, people-detail,
+  shared, notifications, profile-view, review, branch. Scheduled for prompt 150.
+- **Physical device.** All runtime evidence is from an Android emulator.
+- **iOS.** Never built or run.
+- **Offline behaviour.** Cache persists and `refetchOnReconnect` is set, but mutation
+  queueing while offline is untested.
+- **Voice accuracy baseline.** No evaluation dataset exists. Scheduled for prompt 160.
+- **Production Supabase.** No Edge Function deployed, no secrets set in the cloud project.
+
+## Environment
+
+| | |
+|---|---|
+| Local Supabase | ports 55321–55329 (54xxx collides with another project on this machine) |
+| Emulator → host | `http://10.0.2.2:55321` — **not** `127.0.0.1` |
+| Emulator mic | requires launch with `-allow-host-audio` **and** the Extended Controls "Virtual microphone uses host audio input" toggle, which resets on every restart |
+
+## Immediate next actions
+
+1. Complete prompt-pack 150 → 190 (feature audit, voice baseline, Play readiness, triage, gate).
+2. Fix F1 — requires an owner decision on whether recipient *editing* is intended.
+3. Rotate OpenAI and Gemini API keys (exposed in the retired `goodtodo` git history).
+4. Add `expo-asset` as a direct dependency (`expo-doctor` 17/18 → 18/18).
