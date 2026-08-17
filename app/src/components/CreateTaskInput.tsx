@@ -13,11 +13,7 @@ import { useCreateTaskWithTodos } from '../features/tasks/api';
 import { reminderKeys } from '../features/reminders/api';
 import { scheduleRemindersForTodos } from '../services/reminders/scheduler';
 import { getCachedReminderSettings } from '../services/reminders/settingsCache';
-import {
-    requestMicrophonePermission,
-    startRecording,
-    stopRecording,
-} from '../services/voice';
+import { useVoiceRecording } from '../hooks/useVoiceRecording';
 import { RecordingState, AppLanguage, ReminderSettings } from '../types';
 import { useSemanticColors } from '../design-system/useSemanticColors';
 
@@ -28,9 +24,13 @@ export function CreateTaskInput() {
     const colors = useSemanticColors();
 
     const [inputText, setInputText] = useState('');
-    const [recordingState, setRecordingState] = useState<RecordingState>('idle');
     const [isGenerating, setIsGenerating] = useState(false);
     const [language, setLanguage] = useState<AppLanguage>('en');
+
+    // Recording, permissions, the audio session and transcription all live in
+    // the shared hook — this component used to duplicate that logic.
+    const { recordingState, startVoiceRecording, stopVoiceRecording } =
+        useVoiceRecording(language);
 
     const handleSubmit = useCallback(
         async (text: string, sourceType: 'text' | 'voice') => {
@@ -79,40 +79,14 @@ export function CreateTaskInput() {
     const handleTextSubmit = () => handleSubmit(inputText, 'text');
 
     const handleStartRecording = async () => {
-        const hasPermission = await requestMicrophonePermission();
-        if (!hasPermission) {
-            Alert.alert('Permission Required', 'Microphone permission is needed to record audio.');
-            return;
-        }
-        try {
-            await startRecording();
-            setRecordingState('recording');
-        } catch (error: any) {
-            Alert.alert('Recording Error', error.message);
-        }
+        await startVoiceRecording();
     };
 
     const handleStopRecording = async () => {
-        setRecordingState('processing');
-        try {
-            const uri = await stopRecording();
-            if (!uri) {
-                setRecordingState('idle');
-                return;
-            }
-            const transcript = await transcribeVoice(uri, language);
-            if (!transcript.trim()) {
-                Alert.alert('No speech detected', 'Please try recording again.');
-                setRecordingState('idle');
-                return;
-            }
-            setInputText(transcript);
-            setRecordingState('idle');
-            await handleSubmit(transcript, 'voice');
-        } catch (error: any) {
-            setRecordingState('idle');
-            Alert.alert('Transcription Error', error.message);
-        }
+        const transcript = await stopVoiceRecording();
+        if (!transcript) return;
+        setInputText(transcript);
+        await handleSubmit(transcript, 'voice');
     };
 
     const isDisabled = isGenerating || recordingState !== 'idle';

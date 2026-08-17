@@ -15,7 +15,7 @@ import { useGroups, useCreateGroup } from '../../src/features/groups/api';
 import { useProfile } from '../../src/features/profile/api';
 import { useReminderSettings } from '../../src/features/reminders/api';
 import { scheduleRemindersForTodos } from '../../src/services/reminders/scheduler';
-import { requestMicrophonePermission, startRecording, stopRecording, cancelRecording } from '../../src/services/voice';
+import { useVoiceRecording } from '../../src/hooks/useVoiceRecording';
 import { AIGeneratedTask, AIGeneratedTodo, AppLanguage, BranchContext, RecordingState, TaskGroup } from '../../src/types';
 import { useSemanticColors } from '../../src/design-system/useSemanticColors';
 
@@ -68,7 +68,6 @@ export default function BranchScreen() {
     const [additionalContext, setAdditionalContext] = useState('');
     const [isGenerating, setIsGenerating] = useState(false);
     const [aiResult, setAiResult] = useState<AIGeneratedTask | null>(null);
-    const [recordingState, setRecordingState] = useState<RecordingState>('idle');
 
     // Group picker state
     const [selectedGroupId, setSelectedGroupId] = useState<string | null>(null);
@@ -81,49 +80,26 @@ export default function BranchScreen() {
     // Find the specific todo being branched
     const branchedTodo = motherTodos?.find(t => t.id === todoId);
 
-    // Voice recording handlers
+    // Recording, permissions, the audio session and transcription all live in
+    // the shared hook — this screen used to duplicate that logic.
+    const { recordingState, startVoiceRecording, stopVoiceRecording, cancelRecording } =
+        useVoiceRecording(language);
+
     const handleStartRecording = useCallback(async () => {
-        const hasPermission = await requestMicrophonePermission();
-        if (!hasPermission) {
-            Alert.alert('Permission Required', 'Microphone access is needed for voice input.');
-            return;
-        }
-        try {
-            await startRecording();
-            setRecordingState('recording');
-        } catch (error: any) {
-            Alert.alert('Recording Failed', error.message || 'Could not start recording.');
-        }
-    }, []);
+        await startVoiceRecording();
+    }, [startVoiceRecording]);
 
     const handleStopRecording = useCallback(async () => {
-        setRecordingState('processing');
-        try {
-            const uri = await stopRecording();
-            if (!uri) {
-                setRecordingState('idle');
-                Alert.alert('No Speech', 'No audio was recorded.');
-                return;
-            }
-            const transcript = await transcribeVoice(uri, language);
-            if (!transcript.trim()) {
-                setRecordingState('idle');
-                Alert.alert('No Speech', 'Could not detect any speech in the recording.');
-                return;
-            }
-            // Append transcript to additional context
-            setAdditionalContext(prev => prev ? `${prev}\n${transcript}` : transcript);
-            setRecordingState('idle');
-        } catch (error: any) {
-            setRecordingState('idle');
-            Alert.alert('Transcription Failed', error.message || 'Could not transcribe audio.');
-        }
-    }, [language]);
+        const transcript = await stopVoiceRecording();
+        if (!transcript) return;
+        // Append transcript to additional context
+        setAdditionalContext(prev => (prev ? `${prev}
+${transcript}` : transcript));
+    }, [stopVoiceRecording]);
 
     const handleCancelRecording = useCallback(async () => {
         await cancelRecording();
-        setRecordingState('idle');
-    }, []);
+    }, [cancelRecording]);
 
     // Generate branch with AI
     const handleGenerate = useCallback(async () => {

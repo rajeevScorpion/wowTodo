@@ -1,47 +1,31 @@
-import { Audio } from 'expo-av';
+import { requestRecordingPermissionsAsync, setAudioModeAsync } from 'expo-audio';
 
-let currentRecording: Audio.Recording | null = null;
+/**
+ * Audio session helpers.
+ *
+ * Recording itself lives in `useVoiceRecording` — expo-audio exposes the
+ * recorder only as a hook (`useAudioRecorder`), so it cannot be driven from
+ * module-level imperative functions the way expo-av was. Everything that does
+ * not need the recorder instance stays here.
+ */
 
 export async function requestMicrophonePermission(): Promise<boolean> {
-    const { status } = await Audio.requestPermissionsAsync();
-    return status === 'granted';
+    const { granted } = await requestRecordingPermissionsAsync();
+    return granted;
 }
 
-export async function startRecording(): Promise<void> {
-    await Audio.setAudioModeAsync({
-        allowsRecordingIOS: true,
-        playsInSilentModeIOS: true,
+/** Put the audio session into recording mode. */
+export async function beginAudioSession(): Promise<void> {
+    await setAudioModeAsync({
+        allowsRecording: true,
+        playsInSilentMode: true,
     });
-
-    const { recording } = await Audio.Recording.createAsync(
-        Audio.RecordingOptionsPresets.HIGH_QUALITY,
-    );
-
-    currentRecording = recording;
 }
 
-export async function stopRecording(): Promise<string | null> {
-    if (!currentRecording) return null;
-
-    await currentRecording.stopAndUnloadAsync();
-
-    await Audio.setAudioModeAsync({
-        allowsRecordingIOS: false,
+/** Release the recording audio session so normal playback resumes. */
+export async function endAudioSession(): Promise<void> {
+    await setAudioModeAsync({
+        allowsRecording: false,
+        playsInSilentMode: false,
     });
-
-    const uri = currentRecording.getURI();
-    currentRecording = null;
-    return uri;
-}
-
-export async function cancelRecording(): Promise<void> {
-    if (!currentRecording) return;
-
-    await currentRecording.stopAndUnloadAsync();
-
-    await Audio.setAudioModeAsync({
-        allowsRecordingIOS: false,
-    });
-
-    currentRecording = null;
 }

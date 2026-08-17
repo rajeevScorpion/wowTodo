@@ -6,7 +6,7 @@ export async function transcribeAudio(
 ): Promise<string> {
     const formData = new FormData();
 
-    // expo-av records to a file URI; React Native's FormData accepts { uri, type, name }
+    // expo-audio records to a file URI; React Native's FormData accepts { uri, type, name }
     formData.append('file', {
         uri: audioUri,
         type: 'audio/m4a',

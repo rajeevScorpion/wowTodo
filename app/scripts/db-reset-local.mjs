@@ -64,14 +64,37 @@ function findLocalDbContainer() {
 const container = findLocalDbContainer();
 console.log(`→ Local database container: ${container}`);
 
+/** Run a SQL string against the local database. */
+function psql(sql) {
+    sh('docker', [
+        'exec', '-i', container,
+        'psql', '-U', 'postgres', '-d', 'postgres', '-v', 'ON_ERROR_STOP=1', '-q',
+    ], { input: sql, stdio: ['pipe', 'inherit', 'inherit'] });
+}
+
 // Drop and recreate the public schema. auth/storage schemas are left intact so
 // Supabase Auth keeps working.
+//
+// `drop schema public cascade` also destroys the DEFAULT PRIVILEGES Supabase
+// installs for the anon/authenticated/service_role roles. Without restoring
+// them, every table created by the migrations below has no grants at all and
+// PostgREST returns 42501 "permission denied for table ..." — which looks
+// exactly like an RLS problem but is not.
 console.log('→ Dropping and recreating schema public');
-sh('docker', [
-    'exec', '-i', container,
-    'psql', '-U', 'postgres', '-d', 'postgres', '-v', 'ON_ERROR_STOP=1',
-    '-c', 'drop schema if exists public cascade; create schema public; grant all on schema public to postgres, anon, authenticated, service_role;',
-], { stdio: ['ignore', 'inherit', 'inherit'] });
+psql(`
+drop schema if exists public cascade;
+create schema public;
+
+grant usage on schema public to postgres, anon, authenticated, service_role;
+grant create on schema public to postgres, service_role;
+
+alter default privileges in schema public
+    grant all on tables to postgres, anon, authenticated, service_role;
+alter default privileges in schema public
+    grant all on functions to postgres, anon, authenticated, service_role;
+alter default privileges in schema public
+    grant all on sequences to postgres, anon, authenticated, service_role;
+`);
 
 let applied = 0;
 for (const file of ORDER) {
@@ -93,5 +116,16 @@ for (const file of ORDER) {
         process.exit(1);
     }
 }
+
+// Belt and braces: default privileges only cover objects created *after* they
+// were set, and a migration may create objects as a different role. Grant
+// explicitly across everything that now exists. RLS still governs row access —
+// these are table-level grants, which RLS sits on top of.
+console.log('→ Granting table privileges to Supabase roles');
+psql(`
+grant all on all tables in schema public to postgres, anon, authenticated, service_role;
+grant all on all functions in schema public to postgres, anon, authenticated, service_role;
+grant all on all sequences in schema public to postgres, anon, authenticated, service_role;
+`);
 
 console.log(`\n✅ Applied ${applied} migrations to the local database.`);
