@@ -95,81 +95,13 @@ export type UserSearchResult = {
     email: string;
 };
 
-// Supabase Database type
-
-export type Database = {
-    public: {
-        Tables: {
-            tasks: {
-                Row: Task;
-                Insert: Omit<Task, 'id' | 'created_at' | 'updated_at' | 'group_id' | 'event_time' | 'parent_todo_id'> & {
-                    description?: string | null;
-                    source_text?: string | null;
-                    source_type?: 'text' | 'voice';
-                    group_id?: string | null;
-                    event_time?: string | null;
-                    parent_todo_id?: string | null;
-                };
-                Update: Partial<Omit<Task, 'id' | 'created_at' | 'updated_at'>>;
-            };
-            todos: {
-                Row: Todo;
-                Insert: Omit<Todo, 'id' | 'created_at' | 'updated_at' | 'due_date' | 'due_time' | 'is_branched'> & {
-                    order?: number;
-                    due_date?: string | null;
-                    due_time?: string | null;
-                    is_branched?: boolean;
-                };
-                Update: Partial<Omit<Todo, 'id' | 'created_at' | 'updated_at'>>;
-            };
-            task_groups: {
-                Row: TaskGroup;
-                Insert: Omit<TaskGroup, 'id' | 'created_at' | 'updated_at'>;
-                Update: Partial<Omit<TaskGroup, 'id' | 'created_at' | 'updated_at'>>;
-            };
-            user_profiles: {
-                Row: UserProfile;
-                Insert: Omit<UserProfile, 'id' | 'created_at' | 'updated_at'> & {
-                    full_name?: string | null;
-                    avatar_url?: string | null;
-                    date_of_birth?: string | null;
-                    profession?: string | null;
-                    city?: string | null;
-                    bio?: string | null;
-                };
-                Update: Partial<Omit<UserProfile, 'id' | 'created_at' | 'updated_at'>>;
-            };
-            shares: {
-                Row: Share;
-                Insert: Omit<Share, 'id' | 'created_at' | 'updated_at'> & {
-                    status?: ShareStatus;
-                    include_branches?: boolean;
-                    rejection_note?: string | null;
-                };
-                Update: Partial<Omit<Share, 'id' | 'created_at' | 'updated_at'>>;
-            };
-            in_app_notifications: {
-                Row: InAppNotification;
-                Insert: Omit<InAppNotification, 'id' | 'created_at'> & {
-                    read?: boolean;
-                };
-                Update: Partial<Omit<InAppNotification, 'id' | 'created_at'>>;
-            };
-            reminder_settings: {
-                Row: ReminderSettingsRow;
-                Insert: Omit<ReminderSettingsRow, 'id' | 'created_at' | 'updated_at'>;
-                Update: Partial<Omit<ReminderSettingsRow, 'id' | 'created_at' | 'updated_at'>>;
-            };
-            scheduled_reminders: {
-                Row: ScheduledReminder;
-                Insert: Omit<ScheduledReminder, 'id' | 'created_at'>;
-                Update: Partial<Omit<ScheduledReminder, 'id' | 'created_at'>>;
-            };
-        };
-    };
-};
-
-// Reminder types
+// Supabase Database type.
+//
+// Generated from the live schema — do NOT hand-edit. Regenerate after every
+// migration with:  npm run gen:types
+// A hand-maintained copy used to live here and had already drifted from the
+// database (RPC return types were missing entirely, so rpc() returned `{}`).
+export type { Database } from './database';
 
 export type ReminderType = 'notification' | 'alarm' | 'both';
 

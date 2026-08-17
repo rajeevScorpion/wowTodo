@@ -107,8 +107,11 @@ export function useRealtimeSharing() {
                     table: 'todos',
                 },
                 (payload) => {
-                    // Invalidate the specific task's todos and the overall task list
-                    const taskId = payload.new?.task_id || payload.old?.task_id;
+                    // Invalidate the specific task's todos and the overall task list.
+                    // Realtime payloads are loosely typed by supabase-js (the row
+                    // shape isn't known at subscribe time), so narrow explicitly.
+                    const row = (payload.new ?? payload.old) as { task_id?: string } | null;
+                    const taskId = row?.task_id;
                     if (taskId) {
                         queryClient.invalidateQueries({ queryKey: taskKeys.todos(taskId) });
                     }

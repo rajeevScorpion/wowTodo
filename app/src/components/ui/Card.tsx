@@ -1,6 +1,21 @@
 import { Platform } from 'react-native';
 import { styled, YStack, XStack, Text } from 'tamagui';
 
+// Platform.select() widened shadowColor to `string` and contributed an empty
+// `default: {}` branch, which collapsed the whole `elevated` variant to
+// `undefined` in Tamagui's inference. That made `elevated` and `padded`
+// unusable as props and produced 8 type errors across the app. An explicit
+// ternary with a literal colour keeps both variants properly typed.
+const elevatedStyle =
+    Platform.OS === 'android'
+        ? { elevation: 4 }
+        : {
+              shadowColor: '#000' as const,
+              shadowOffset: { width: 0, height: 4 },
+              shadowOpacity: 0.07,
+              shadowRadius: 16,
+          };
+
 export const Card = styled(YStack, {
     backgroundColor: '$neoSurface',
     borderRadius: 16,
@@ -9,20 +24,7 @@ export const Card = styled(YStack, {
 
     variants: {
         elevated: {
-            true: {
-                ...Platform.select({
-                    ios: {
-                        shadowColor: '#000',
-                        shadowOffset: { width: 0, height: 4 },
-                        shadowOpacity: 0.07,
-                        shadowRadius: 16,
-                    },
-                    android: {
-                        elevation: 4,
-                    },
-                    default: {},
-                }),
-            },
+            true: elevatedStyle,
         },
         padded: {
             true: {

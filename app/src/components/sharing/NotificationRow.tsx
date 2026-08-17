@@ -77,7 +77,7 @@ export function NotificationRow({ notification, onPress }: NotificationRowProps)
                 <YStack flex={1} gap={2}>
                     <AppText
                         size="sm"
-                        weight={notification.read ? 'regular' : 'medium'}
+                        weight={notification.read ? 'normal' : 'medium'}
                         numberOfLines={2}
                     >
                         {notification.body}

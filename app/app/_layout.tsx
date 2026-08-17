@@ -5,12 +5,13 @@ import { createAsyncStoragePersister } from '@tanstack/query-async-storage-persi
 import { TamaguiProvider, YStack, Spinner } from 'tamagui';
 import { AuthProvider, useAuth } from '../src/providers/AuthProvider';
 import { useEffect, useState, useRef, createContext, useContext, ReactNode } from 'react';
-import { LogBox, useColorScheme } from 'react-native';
+import { AppState, LogBox, useColorScheme } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import tamaguiConfig from '../src/design-system/tamagui.config';
 import { setupNotifications } from '../src/services/reminders/setup';
+import { syncReminderWindow } from '../src/services/reminders/scheduler';
 import * as Notifications from 'expo-notifications';
 import { isExpoGo } from '../src/lib/expoGoDetect';
 import { ToastProvider } from '../src/contexts/ToastContext';
@@ -111,6 +112,27 @@ function InitialLayout() {
             setupNotifications().catch(console.warn);
         }
     }, [session]);
+
+    // Keep the rolling reminder window topped up.
+    //
+    // Only the soonest N reminders are ever handed to the OS (see
+    // MAX_PENDING_NOTIFICATIONS), so as those fire the next batch has to be
+    // scheduled. Run on cold start and whenever the app returns to the
+    // foreground; syncReminderWindow throttles itself, so rapid app switching
+    // costs nothing.
+    useEffect(() => {
+        const userId = session?.user?.id;
+        if (!userId || isExpoGo()) return;
+
+        syncReminderWindow(userId).catch(console.warn);
+
+        const sub = AppState.addEventListener('change', (state) => {
+            if (state === 'active') {
+                syncReminderWindow(userId).catch(console.warn);
+            }
+        });
+        return () => sub.remove();
+    }, [session?.user?.id]);
 
     // Handle notification tap — pre-fetch task then navigate (skip in Expo Go)
     useEffect(() => {

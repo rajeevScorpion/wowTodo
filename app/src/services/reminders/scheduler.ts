@@ -1,7 +1,17 @@
 import * as Notifications from 'expo-notifications';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { supabase } from '../../lib/supabase';
 import { isExpoGo } from '../../lib/expoGoDetect';
-import { Todo, Task, ReminderSettings, ReminderSlot, ScheduledReminder } from '../../types';
+import type { Database } from '../../types/database';
+import {
+    Todo,
+    Task,
+    ReminderSettings,
+    ReminderSettingsRow,
+    ReminderSlot,
+    ScheduledReminder,
+    rowToReminderSettings,
+} from '../../types';
 
 const _isExpoGo = isExpoGo();
 
@@ -78,6 +88,99 @@ async function scheduleLocalNotification(
 }
 
 /**
+ * The OS caps how many local notifications an app may have pending. iOS silently
+ * discards anything beyond 64 — no error, the reminder simply never fires. We
+ * schedule only the soonest MAX_PENDING reminders and top the window up whenever
+ * reminders are rescheduled, so a user with hundreds of todos still reliably
+ * gets the ones that matter next.
+ */
+const MAX_PENDING_NOTIFICATIONS = 60;
+
+interface ReminderCandidate {
+    todo: Todo;
+    task: Task;
+    slot: ReminderSlot;
+    slotNumber: number;
+    fireAt: Date;
+}
+
+/**
+ * Work out every reminder that *should* exist for a set of todos. Pure and
+ * synchronous — no I/O — so the whole plan can be computed, sorted and trimmed
+ * before a single notification is scheduled.
+ */
+function buildReminderCandidates(
+    todos: Todo[],
+    taskFor: (todo: Todo) => Task | undefined,
+    allSettings: ReminderSettings[],
+    now: Date,
+): ReminderCandidate[] {
+    const candidates: ReminderCandidate[] = [];
+
+    for (const todo of todos) {
+        const task = taskFor(todo);
+        if (!task) continue;
+
+        const dueDateTime = resolveDueDateTime(todo, task);
+        if (!dueDateTime) continue;
+
+        const settings = findApplicableSettings(allSettings, task.group_id);
+        if (!settings) continue;
+
+        for (let i = 0; i < settings.slots.length; i++) {
+            const slot = settings.slots[i];
+            if (!slot.enabled) continue;
+
+            const fireAt = new Date(dueDateTime.getTime() - slot.minutes_before * 60 * 1000);
+            if (fireAt <= now) continue;
+
+            candidates.push({ todo, task, slot, slotNumber: i + 1, fireAt });
+        }
+    }
+
+    // Soonest first, so trimming to the cap keeps the most imminent reminders.
+    candidates.sort((a, b) => a.fireAt.getTime() - b.fireAt.getTime());
+    return candidates;
+}
+
+/**
+ * Schedule a batch of candidates and persist them in a single round trip.
+ * Previously this issued one upsert per slot, which meant 3 network calls per
+ * todo — 300 sequential calls for a 100-todo reschedule.
+ */
+async function scheduleCandidates(candidates: ReminderCandidate[]): Promise<number> {
+    const rows: Database['public']['Tables']['scheduled_reminders']['Insert'][] = [];
+
+    for (const c of candidates) {
+        try {
+            const notificationId = await scheduleLocalNotification(c.todo, c.task, c.slot, c.fireAt);
+            rows.push({
+                user_id: c.todo.user_id,
+                todo_id: c.todo.id,
+                slot_number: c.slotNumber,
+                fire_at: c.fireAt.toISOString(),
+                type: c.slot.type,
+                notification_id: notificationId,
+            });
+        } catch (error) {
+            console.warn(`Failed to schedule reminder slot ${c.slotNumber} for todo ${c.todo.id}:`, error);
+        }
+    }
+
+    if (rows.length === 0) return 0;
+
+    const { error } = await supabase
+        .from('scheduled_reminders')
+        .upsert(rows, { onConflict: 'todo_id,slot_number' });
+
+    if (error) {
+        console.warn('Failed to persist scheduled reminders:', error);
+    }
+
+    return rows.length;
+}
+
+/**
  * Schedule reminders for a single todo based on reminder settings.
  * Returns the number of reminders scheduled.
  * In Expo Go: persists to DB but skips local notification scheduling.
@@ -87,43 +190,8 @@ export async function scheduleRemindersForTodo(
     task: Task,
     allSettings: ReminderSettings[],
 ): Promise<number> {
-    const dueDateTime = resolveDueDateTime(todo, task);
-    if (!dueDateTime) return 0;
-
-    const settings = findApplicableSettings(allSettings, task.group_id);
-    if (!settings) return 0;
-
-    const now = new Date();
-    let count = 0;
-
-    for (let i = 0; i < settings.slots.length; i++) {
-        const slot = settings.slots[i];
-        if (!slot.enabled) continue;
-
-        const fireAt = new Date(dueDateTime.getTime() - slot.minutes_before * 60 * 1000);
-        if (fireAt <= now) continue;
-
-        try {
-            const notificationId = await scheduleLocalNotification(todo, task, slot, fireAt);
-
-            await supabase.from('scheduled_reminders').upsert({
-                user_id: todo.user_id,
-                todo_id: todo.id,
-                slot_number: i + 1,
-                fire_at: fireAt.toISOString(),
-                type: slot.type,
-                notification_id: notificationId,
-            }, {
-                onConflict: 'todo_id,slot_number',
-            });
-
-            count++;
-        } catch (error) {
-            console.warn(`Failed to schedule reminder slot ${i + 1} for todo ${todo.id}:`, error);
-        }
-    }
-
-    return count;
+    const candidates = buildReminderCandidates([todo], () => task, allSettings, new Date());
+    return scheduleCandidates(candidates);
 }
 
 /**
@@ -134,12 +202,10 @@ export async function scheduleRemindersForTodos(
     task: Task,
     allSettings: ReminderSettings[],
 ): Promise<number> {
-    let total = 0;
-    for (const todo of todos) {
-        const count = await scheduleRemindersForTodo(todo, task, allSettings);
-        total += count;
-    }
-    return total;
+    // Plan every todo up front so the whole set persists in one round trip
+    // rather than one per todo.
+    const candidates = buildReminderCandidates(todos, () => task, allSettings, new Date());
+    return scheduleCandidates(candidates);
 }
 
 /**
@@ -190,16 +256,21 @@ export async function rescheduleAllReminders(
                 .select('notification_id')
                 .eq('user_id', userId);
 
+            // Cancel in parallel — sequentially awaiting hundreds of these made
+            // changing a reminder setting take several seconds.
             if (existing) {
-                for (const r of existing) {
-                    if (r.notification_id) {
-                        try {
-                            await Notifications.cancelScheduledNotificationAsync(r.notification_id);
-                        } catch {
-                            // Notification may have already fired
-                        }
-                    }
-                }
+                await Promise.all(
+                    existing
+                        .map(r => r.notification_id)
+                        .filter((id): id is string => Boolean(id))
+                        .map(id =>
+                            Notifications
+                                .cancelScheduledNotificationAsync(id)
+                                .catch(() => {
+                                    // Already fired or unknown id — nothing to cancel.
+                                }),
+                        ),
+                );
             }
         }
 
@@ -208,6 +279,7 @@ export async function rescheduleAllReminders(
             .delete()
             .eq('user_id', userId);
 
+        // Only todos that can still produce a future reminder.
         const { data: todos } = await supabase
             .from('todos')
             .select('*')
@@ -227,17 +299,71 @@ export async function rescheduleAllReminders(
 
         const taskMap = new Map(tasks.map(t => [t.id, t as Task]));
 
-        let total = 0;
-        for (const todo of todos) {
-            const task = taskMap.get(todo.task_id);
-            if (!task) continue;
-            const count = await scheduleRemindersForTodo(todo as Todo, task, allSettings);
-            total += count;
+        const candidates = buildReminderCandidates(
+            todos as Todo[],
+            todo => taskMap.get(todo.task_id),
+            allSettings,
+            new Date(),
+        );
+
+        if (candidates.length > MAX_PENDING_NOTIFICATIONS) {
+            console.info(
+                `Reminder window: ${candidates.length} due, scheduling the soonest ${MAX_PENDING_NOTIFICATIONS}.`,
+            );
         }
 
-        return total;
+        return scheduleCandidates(candidates.slice(0, MAX_PENDING_NOTIFICATIONS));
     } catch (error) {
         console.warn('Failed to reschedule all reminders:', error);
+        return 0;
+    }
+}
+
+const WINDOW_SYNC_THROTTLE_MS = 30 * 60 * 1000; // 30 minutes
+const LAST_WINDOW_SYNC_KEY = 'wowtodo:reminders:lastWindowSync';
+
+/**
+ * Top up the rolling reminder window.
+ *
+ * Because only the soonest MAX_PENDING_NOTIFICATIONS reminders are ever handed
+ * to the OS, something has to schedule the *next* batch as earlier ones fire.
+ * This runs on cold start and whenever the app returns to the foreground,
+ * throttled so it costs nothing on rapid app switching.
+ *
+ * Self-contained: it loads the user's reminder settings itself so it can be
+ * called from anywhere without plumbing React Query state through.
+ */
+export async function syncReminderWindow(
+    userId: string,
+    options: { force?: boolean } = {},
+): Promise<number> {
+    if (_isExpoGo) return 0;
+
+    try {
+        if (!options.force) {
+            const last = await AsyncStorage.getItem(LAST_WINDOW_SYNC_KEY);
+            if (last && Date.now() - Number(last) < WINDOW_SYNC_THROTTLE_MS) {
+                return 0;
+            }
+        }
+
+        const { data: rows, error } = await supabase
+            .from('reminder_settings')
+            .select('*')
+            .eq('user_id', userId);
+
+        if (error || !rows || rows.length === 0) return 0;
+
+        // The table stores slots as flat slot1_*/slot2_*/slot3_* columns; the
+        // scheduler works with the mapped `slots` array. Must go through the
+        // same mapper the rest of the app uses.
+        const settings = (rows as ReminderSettingsRow[]).map(rowToReminderSettings);
+
+        const scheduled = await rescheduleAllReminders(userId, settings);
+        await AsyncStorage.setItem(LAST_WINDOW_SYNC_KEY, String(Date.now()));
+        return scheduled;
+    } catch (err) {
+        console.warn('Reminder window sync failed:', err);
         return 0;
     }
 }

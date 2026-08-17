@@ -21,9 +21,39 @@ npx expo start          # Start dev server (press a/i/w for Android/iOS/Web)
 npx expo run:android    # Build and run on Android
 npx expo run:ios        # Build and run on iOS
 npx expo start --web    # Run web version directly
+
+npm run typecheck       # tsc --noEmit — currently clean, keep it that way
+npm run db:reset:local  # replay all migrations into the local Supabase DB
+npm run gen:types       # regenerate src/types/database.ts from the local schema
 ```
 
-No test runner or linter is currently configured.
+No test runner or linter is configured yet. `npm run typecheck` is the current
+correctness gate and passes with zero errors.
+
+### Local Supabase
+
+A local stack mirrors the cloud schema. Ports are remapped to **55321–55329**
+(the default 54xxx range collides with another Supabase project on the primary
+dev machine).
+
+```bash
+supabase start          # API 55321 · DB 55322 · Studio 55323
+npm run db:reset:local  # apply every migration in dependency order
+```
+
+The Android emulator reaches the host at `10.0.2.2`, so `.env` should use
+`EXPO_PUBLIC_SUPABASE_URL=http://10.0.2.2:55321` — not `127.0.0.1`.
+
+### Windows environment
+
+`ANDROID_HOME`, `JAVA_HOME` and the emulator are not on PATH by default on the
+current dev machine. Set per-session:
+
+```powershell
+$env:JAVA_HOME  = "C:\Program Files\Android\Android Studio\jbr"   # JDK 21
+$env:ANDROID_HOME = "D:\AndriodSDK"
+$env:PATH = "$env:JAVA_HOME\bin;$env:ANDROID_HOME\platform-tools;$env:ANDROID_HOME\emulator;$env:PATH"
+```
 
 ## Architecture
 
@@ -113,7 +143,19 @@ No test runner or linter is currently configured.
 
 ### Styling
 
-NativeWind (Tailwind CSS for React Native) with neumorphic ("neo") design system. Global directives in `global.css`, config in `tailwind.config.js`. Use `cn()` from `src/lib/utils.ts` for conditional class merging. Use `StyleSheet` (not NativeWind) for dynamic styles like progress bar widths to avoid css-interop transition crashes. Supports dark/light mode via `userInterfaceStyle: "automatic"`.
+**Tamagui** with a neumorphic ("neo") design system. NativeWind was removed in
+commit `55832cd` — there is no `tailwind.config.js`, no `global.css` and no
+`nativewind` dependency.
+
+- Theme/token configuration: `src/design-system/tamagui.config.ts`, `themes.ts`, `fonts.ts`
+- Semantic colour access: `src/design-system/useSemanticColors.ts`
+- Neumorphic primitives: `src/components/neo/`
+- Dark/light mode via `userInterfaceStyle: "automatic"` (requires `expo-system-ui`, installed)
+
+When adding a `styled()` variant, avoid `Platform.select()` for the variant
+value — it widens literal types and can contribute an empty `default: {}`
+branch, which collapses the variant to `undefined` and silently breaks the prop
+across the app. Use an explicit ternary instead (see `src/components/ui/Card.tsx`).
 
 ### Backend
 

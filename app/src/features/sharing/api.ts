@@ -133,7 +133,15 @@ export const useSentShares = () => {
                 .in('id', taskIds);
 
             // Batch fetch recipient profiles via SECURITY DEFINER function
-            const recipientIds = [...new Set(shares.map((s) => s.recipient_id))];
+            // recipient_id is nullable in the schema; drop nulls so the RPC gets
+            // a clean string[] and we never look up an undefined profile.
+            const recipientIds = [
+                ...new Set(
+                    shares
+                        .map((s) => s.recipient_id)
+                        .filter((id): id is string => Boolean(id)),
+                ),
+            ];
             const { data: profiles } = await supabase.rpc('get_profiles_by_ids', {
                 p_user_ids: recipientIds,
             });
@@ -165,7 +173,7 @@ export const useSentShares = () => {
 
             return shares.map((share) => {
                 const task = tasksMap.get(share.task_id);
-                const profile = profilesMap.get(share.recipient_id);
+                const profile = share.recipient_id ? profilesMap.get(share.recipient_id) : undefined;
                 const counts = todoCounts.get(share.task_id) || { total: 0, completed: 0 };
 
                 return {
@@ -200,7 +208,15 @@ export const useSharesForTask = (taskId: string) => {
             if (error) throw error;
             if (!shares || shares.length === 0) return [];
 
-            const recipientIds = [...new Set(shares.map((s) => s.recipient_id))];
+            // recipient_id is nullable in the schema; drop nulls so the RPC gets
+            // a clean string[] and we never look up an undefined profile.
+            const recipientIds = [
+                ...new Set(
+                    shares
+                        .map((s) => s.recipient_id)
+                        .filter((id): id is string => Boolean(id)),
+                ),
+            ];
             const { data: profiles } = await supabase.rpc('get_profiles_by_ids', {
                 p_user_ids: recipientIds,
             });
