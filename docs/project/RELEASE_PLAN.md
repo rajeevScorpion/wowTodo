@@ -59,9 +59,14 @@ Slices are ordered. Slices marked ⟂ can run in parallel with the one before.
 Found and fixed outside the original plan: **D7** — `eas.json` declared no `env`, so an
 EAS store build would have shipped with no Supabase URL or anon key and reached nothing.
 
-Opened outside the plan and **still owner-blocked**: **D8** — it is unverified whether
-migration `0013` (the F1 P0 fix) was ever applied to the **cloud** database. Slices 1 and 7
-were both verified against the local mirror only.
+**D8 (opened and closed outside the plan).** The fixes from slices 1 and 7 had been
+verified against the local mirror only, and a cloud schema dump proved they were **absent
+from production** — F1 and F5 were live. Both migrations were applied to cloud on
+2026-08-18 and verified there, by schema inspection and by a rolled-back behavioural test.
+
+The underlying gap remains: there is no `supabase/migrations/` history, so nothing pushes
+local migrations to cloud automatically. Every future migration needs an explicit cloud
+apply — see [MIGRATION_REGISTER.md](../data/MIGRATION_REGISTER.md).
 
 ### Slice 1 — Close the two security P0s ⚠️ **BLOCKED ON AN OWNER DECISION**
 

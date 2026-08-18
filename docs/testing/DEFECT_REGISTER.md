@@ -33,7 +33,7 @@ Triage and fix plan: prompt 180.
 | ~~D5~~ | ~~P2~~ | Secrets | OpenAI/Gemini keys rotated **and old keys revoked** | ✅ **DONE** — verified: the old key now returns 401 |
 | ~~D5b~~ | ~~P1~~ | Secrets | Cloud Edge Function secrets unset — production AI returned `503` | ✅ **FIXED** — secrets set + `ai-proxy` deployed, 5/5 verified in production |
 | ~~D7~~ | ~~P1~~ | Release | `eas.json` set no `env` — a store build shipped with **no Supabase URL or key** | ✅ **FIXED** — `env` added to `preview` + `production` |
-| **D8** | **P0?** | Schema | **Unverified whether migration 0013 (F1 + F5 fixes) is applied to the CLOUD database** | OPEN — needs owner |
+| ~~D8~~ | ~~**P0**~~ | Schema | Migration 0013 (F1 + F5) was **confirmed absent from cloud** — the P0 was live in production | ✅ **FIXED** — 0013 + 0014 applied to cloud and verified behaviourally |
 | **D6** | P3 | Docs | `app/CLAUDE.md` stale: lists `expo-av`, claims no test runner | OPEN |
 
 ---
@@ -170,7 +170,41 @@ name search returns the profile with `email` NULL; minimum 3-character query enf
 server-side. Both search modes in the UI still work, and shares are created with
 `recipient_id` rather than the address, so nothing in the flow depended on it.
 
-### D8 — P0? · Is the P0 fix actually live in production?
+### D8 — P0 · The P0 fix was NOT live in production  ✅ FIXED 2026-08-18
+
+**Confirmed, then closed.** A `supabase db dump --linked -s public` of the cloud schema
+showed the fixes were absent: 0 matches for `enforce_shared_todo_update_scope`, no
+`null::text` in `search_users`, and `tasks_parent_todo_id_fkey` still `ON DELETE RESTRICT`.
+For the period between slice 1 and 2026-08-18, **F1 and F5 were live in production**.
+
+The earlier blocker was wrong in one respect worth recording: the Supabase CLI **does not
+need the database password** for `--linked` commands. It provisions a temporary login role
+through the management API token ("Initialising login role..."), which is how the cloud
+schema was finally read. `migration list --linked` and `db dump --linked` both work with
+the token alone.
+
+Applied with `psql` against the **session** pooler (port 5432, not the transaction pooler
+on 6543 — DDL belongs on a session connection). Verified afterwards:
+
+| Object | Cloud state |
+|---|---|
+| `enforce_shared_todo_update_scope` trigger + function | present |
+| `search_users` returns `null::text` for name search | present |
+| `search_users` minimum-length guard | present |
+| `tasks_parent_todo_id_fkey` | `SET NULL` |
+
+Then verified **behaviourally** against production inside a rolled-back transaction:
+recipient title change and ownership seizure both raised
+`Share recipients may only change completion status on a shared todo`; recipient
+completion toggle and owner edits still succeeded. No fixture rows persisted (0 leftover
+users/tasks/todos) and all 12 real users were untouched.
+
+**Root cause of the gap:** there is no `supabase/migrations/` directory, so the CLI holds
+no migration history and nothing ever pushed local migrations to cloud. Until that is
+fixed, every future migration must be applied to cloud explicitly — a green local
+`db:reset:local` says nothing about production.
+
+### D8 — original entry (superseded)
 
 Migration `0013` fixed **F1 (P0)** and **F5 (P1)**. It was written, tested and verified
 **against the local stack only** (`npm run verify:rls`, 17/17). There is **no evidence it

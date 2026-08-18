@@ -12,7 +12,8 @@ no mandatory header. The standard states *"Do not change historical migration fi
 simply to conform"*, so they are **grandfathered as 0001–0012** for register purposes
 only — filenames are not being rewritten.
 
-**0013 and 0014 are applied locally.** The next new migration must be **`0015`** and must fully comply with
+**0013 and 0014 are applied locally AND to cloud** (cloud: 2026-08-18, verified by schema
+dump plus a rolled-back behavioural test). The next new migration must be **`0015`** and must fully comply with
 the header, pairing and register rules.
 
 ## Register
@@ -54,6 +55,33 @@ against the local mirror and verified to restore prior behaviour.
 4. Verify on the local mirror: forward → verify → rollback → verify → reapply → test.
 5. Add the row to this register **and** to `MIGRATION_ORDER.md`.
 6. Regenerate types afterwards: `npm run gen:types`.
+
+## Applying a migration to the CLOUD project
+
+There is **no `supabase/migrations/` directory**, so the CLI has no migration history and
+`db push` has nothing to push. Cloud schema changes are applied explicitly. Migrations
+0013 and 0014 were absent from cloud for days after passing locally — a green
+`db:reset:local` is **not** evidence that production has the change.
+
+The CLI does **not** need the database password for `--linked` commands; it provisions a
+temporary login role from the management API token:
+
+```bash
+./node_modules/.bin/supabase db dump --linked -s public -f cloud-schema.sql   # read
+./node_modules/.bin/supabase migration list --linked                          # read
+```
+
+To apply, connect to the **session** pooler on port **5432**. Port 6543 is the transaction
+pooler and is the wrong place for DDL:
+
+```bash
+PGPASSWORD=... psql -h aws-1-ap-south-1.pooler.supabase.com -p 5432 \
+  -U postgres.<project-ref> -d postgres -X -v ON_ERROR_STOP=1 \
+  -f migrations/00NN_name.sql
+```
+
+Always re-read the schema afterwards to confirm each object exists. Do not treat the
+absence of an error as proof.
 
 ## Local reset caveat
 
