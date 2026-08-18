@@ -13,8 +13,15 @@ simply to conform"*, so they are **grandfathered as 0001–0012** for register p
 only — filenames are not being rewritten.
 
 **0013 and 0014 are applied locally AND to cloud** (cloud: 2026-08-18, verified by schema
-dump plus a rolled-back behavioural test). The next new migration must be **`0015`** and must fully comply with
-the header, pairing and register rules.
+dump plus a rolled-back behavioural test).
+
+**0015 is applied LOCALLY ONLY.** It has not been pushed to cloud — `npm run db:diff:cloud`
+will therefore report DRIFT until it is, which is correct rather than a fault. It must be
+pushed together with the matching `ai-proxy` deploy: the function calls `consume_ai_quota`
+and fails closed with a 503 if the RPC is absent, so deploying the function first would
+take AI generation down. Push the migration first, then deploy the function.
+
+The next new migration must be **`0016`**.
 
 ## Register
 
@@ -37,6 +44,7 @@ against the local mirror and verified to restore prior behaviour.
 | 0012 | `supabase_migration_get_profiles_by_ids.sql` | Batch profile lookup RPC | 0003 | `supabase_rollback_get_profiles_by_ids.sql` | ✅ | ⬜ |
 | **0013** | `0013_restrict_shared_todo_updates_and_user_search.sql` | Fix F1 (recipient could seize a todo) and F5 (email harvesting) | 0006, 0008 | `0013_…rollback.sql` | ✅ | ✅ **tested** |
 | **0014** | `0014_unblock_deleting_tasks_with_branches.sql` | Fix DF-1 — `tasks.parent_todo_id` RESTRICT → SET NULL, so a branched todo no longer makes its task undeletable | branches | `0014_…rollback.sql` | ✅ | ✅ **tested** |
+| **0015** | `0015_ai_proxy_rate_limit.sql` | Fix F3 — per-user quota counters + `consume_ai_quota` RPC so `ai-proxy` has a spend bound | 0001 | `0015_…rollback.sql` | ✅ | ⬜ |
 
 ## Open items
 

@@ -2,6 +2,7 @@ import { AIGeneratedTask, AppLanguage, BranchContext } from '../../types';
 import { generateTaskWithOpenAI, generateBranchWithOpenAI } from './openai';
 import { generateTaskWithGemini, generateBranchWithGemini } from './gemini';
 import { transcribeAudio } from './whisper';
+import { AiRateLimitError } from './proxy';
 
 /**
  * AI orchestration.
@@ -12,6 +13,18 @@ import { transcribeAudio } from './whisper';
  * OpenAI, fall back to Gemini, and surface a single actionable error if neither
  * works.
  */
+
+/**
+ * Being over quota is not a provider outage.
+ *
+ * The proxy's budget is shared between OpenAI and Gemini, so retrying the other
+ * provider is guaranteed to be refused too — it just spends a second request to
+ * reach the same answer, and buries the real reason behind a connection error
+ * the user cannot act on. Re-throw immediately and let the message through.
+ */
+function rethrowIfRateLimited(error: unknown): void {
+    if (error instanceof AiRateLimitError) throw error;
+}
 
 /** Both providers failed, or neither is configured on the server. */
 function providersUnavailable(openAiError: unknown, geminiError: unknown): Error {
@@ -35,6 +48,7 @@ export async function generateTask(
     try {
         return await generateTaskWithOpenAI(userInput, existingGroups, language);
     } catch (error) {
+        rethrowIfRateLimited(error);
         openAiError = error;
         console.warn('OpenAI failed, falling back to Gemini:', error);
     }
@@ -42,6 +56,7 @@ export async function generateTask(
     try {
         return await generateTaskWithGemini(userInput, existingGroups, language);
     } catch (geminiError) {
+        rethrowIfRateLimited(geminiError);
         throw providersUnavailable(openAiError, geminiError);
     }
 }
@@ -59,6 +74,7 @@ export async function generateBranch(
     try {
         return await generateBranchWithOpenAI(context, existingGroups, language);
     } catch (error) {
+        rethrowIfRateLimited(error);
         openAiError = error;
         console.warn('OpenAI branch generation failed, falling back to Gemini:', error);
     }
@@ -66,6 +82,7 @@ export async function generateBranch(
     try {
         return await generateBranchWithGemini(context, existingGroups, language);
     } catch (geminiError) {
+        rethrowIfRateLimited(geminiError);
         throw providersUnavailable(openAiError, geminiError);
     }
 }

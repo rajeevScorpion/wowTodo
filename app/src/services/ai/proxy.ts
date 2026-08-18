@@ -46,6 +46,48 @@ export class AiCancelledError extends Error {
     }
 }
 
+/**
+ * The server refused the request because the caller is over their quota (F3).
+ *
+ * This is a distinct type because it must NOT be treated as a provider failure.
+ * The proxy's budget is shared across providers, so falling back to Gemini after
+ * an OpenAI 429 just spends a second request to be refused again, and the user
+ * ends up reading "check your connection" about a connection that is fine.
+ */
+export class AiRateLimitError extends Error {
+    readonly retryAfterSeconds: number;
+
+    constructor(retryAfterSeconds: number) {
+        super(rateLimitMessage(retryAfterSeconds));
+        this.name = 'AiRateLimitError';
+        this.retryAfterSeconds = retryAfterSeconds;
+    }
+}
+
+function rateLimitMessage(seconds: number): string {
+    if (seconds <= 90) {
+        return `You've made a lot of AI requests. Please try again in ${Math.max(1, Math.ceil(seconds))} seconds.`;
+    }
+    const minutes = Math.ceil(seconds / 60);
+    if (minutes < 60) {
+        return `You've made a lot of AI requests. Please try again in ${minutes} minutes.`;
+    }
+    const hours = Math.ceil(minutes / 60);
+    return `You've reached today's AI request limit. Please try again in ${hours} hour${hours === 1 ? '' : 's'}.`;
+}
+
+/**
+ * Turn a 429 into a typed error at the single point every AI call passes
+ * through, so no individual provider module has to remember to handle it.
+ */
+function throwIfRateLimited(response: Response): Response {
+    if (response.status !== 429) return response;
+
+    const header = Number(response.headers.get('Retry-After'));
+    const retryAfter = Number.isFinite(header) && header > 0 ? header : 60;
+    throw new AiRateLimitError(retryAfter);
+}
+
 async function authHeaders(): Promise<Record<string, string>> {
     const { data } = await supabase.auth.getSession();
     const token = data.session?.access_token || ANON_KEY;
@@ -103,17 +145,19 @@ export async function proxyJson(
     body: unknown,
     signal?: AbortSignal,
 ): Promise<Response> {
-    return fetchWithTimeout(
-        {
-            method: 'POST',
-            headers: {
-                ...(await authHeaders()),
-                'Content-Type': 'application/json',
+    return throwIfRateLimited(
+        await fetchWithTimeout(
+            {
+                method: 'POST',
+                headers: {
+                    ...(await authHeaders()),
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({ target, body }),
             },
-            body: JSON.stringify({ target, body }),
-        },
-        CHAT_TIMEOUT_MS,
-        signal,
+            CHAT_TIMEOUT_MS,
+            signal,
+        ),
     );
 }
 
@@ -122,14 +166,16 @@ export async function proxyFormData(
     form: FormData,
     signal?: AbortSignal,
 ): Promise<Response> {
-    return fetchWithTimeout(
-        {
-            method: 'POST',
-            // No Content-Type — fetch sets it with the multipart boundary.
-            headers: await authHeaders(),
-            body: form,
-        },
-        TRANSCRIBE_TIMEOUT_MS,
-        signal,
+    return throwIfRateLimited(
+        await fetchWithTimeout(
+            {
+                method: 'POST',
+                // No Content-Type — fetch sets it with the multipart boundary.
+                headers: await authHeaders(),
+                body: form,
+            },
+            TRANSCRIBE_TIMEOUT_MS,
+            signal,
+        ),
     );
 }

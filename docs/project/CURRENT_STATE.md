@@ -16,7 +16,7 @@ Each item below was observed running, not inferred from code.
 | Capability | Evidence |
 |---|---|
 | Android build + launch | `expo run:android`, app reaches home screen |
-| Google OAuth + email/password sign-in | signed in on emulator |
+| Google OAuth sign-in (only method) | signed in on emulator |
 | AI task generation from typed text | "How to make mango lassi" → 7 todos persisted |
 | Voice → Whisper → todos | confirmed by owner after enabling emulator mic |
 | `ai-proxy` Edge Function | real OpenAI round trip; 6 abuse controls return 401/400/400/400/503/405 |

@@ -21,15 +21,8 @@ export default function Callback() {
             try {
                 const params = extractParams(url);
 
-                // Handle password recovery flow
-                if (params.type === 'recovery' && params.access_token) {
-                    await supabase.auth.setSession({
-                        access_token: params.access_token,
-                        refresh_token: params.refresh_token,
-                    });
-                    router.replace('/reset-password');
-                    return;
-                }
+                // There is no password recovery flow any more — Google is the
+                // only sign-in method, so this route only ever handles OAuth.
 
                 // For OAuth: try exchanging code, but if login.tsx already
                 // exchanged it (race condition), just check for existing session

@@ -28,7 +28,7 @@ Verification legend:
 | Reminders — scheduling | ✅ VERIFIED | [scheduler.ts](../../app/src/services/reminders/scheduler.ts) | 60-item rolling window; 12 unit tests |
 | Reminders — delivery | ✅ VERIFIED | [setup.ts](../../app/src/services/reminders/setup.ts) | `POST_NOTIFICATIONS granted=true`; requires a dev/production build, not Expo Go |
 | Auth — Google OAuth | ✅ VERIFIED | [login.tsx](<../../app/app/(auth)/login.tsx>) | |
-| Auth — email/password | ✅ VERIFIED | same | |
+| Auth — email/password | 🗑️ REMOVED 2026-08-18 | — | Google is now the only sign-in method |
 | Sign-out | ⚠️ DEFECT | [settings.tsx:38](<../../app/app/(app)/settings.tsx#L38>) | **F2** — no cache/notification cleanup |
 
 ## Supplementary

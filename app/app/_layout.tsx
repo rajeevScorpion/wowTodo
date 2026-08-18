@@ -97,10 +97,9 @@ function InitialLayout() {
 
         const inAuthGroup = segments[0] === '(auth)';
         const inCallbackRoute = segments[0] === 'callback';
-        const inResetPasswordRoute = segments[0] === 'reset-password';
         const inDevGroup = segments[0] === '(dev)';
 
-        if (!session && !inAuthGroup && !inCallbackRoute && !inResetPasswordRoute && !inDevGroup) {
+        if (!session && !inAuthGroup && !inCallbackRoute && !inDevGroup) {
             router.replace('/(auth)/login');
         } else if (session && (inAuthGroup || inCallbackRoute)) {
             router.replace('/(app)');

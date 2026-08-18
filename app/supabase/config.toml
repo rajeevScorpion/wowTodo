@@ -281,6 +281,34 @@ url = ""
 # If enabled, the nonce check will be skipped. Required for local sign in with Google auth.
 skip_nonce_check = false
 
+# Google is the ONLY sign-in method WowTodo offers, so it has to be enabled here
+# as well as in the cloud dashboard. The two are entirely separate auth stacks:
+# the emulator talks to this one, and while it was disabled here every Google
+# sign-in attempt came back as a raw
+#   {"code":400,"error_code":"validation_failed",
+#    "msg":"Unsupported provider: provider is not enabled"}
+# rendered in the in-app browser — the "white screen with an error message".
+#
+# Credentials come from app/.env, which is gitignored. Reuse the same Google
+# OAuth client as the cloud project; it just needs one extra entry under
+# "Authorized redirect URIs" in the Google Cloud console:
+#   http://127.0.0.1:55321/auth/v1/callback
+# Google refuses private IPs such as 10.0.2.2 over plain http but allows the
+# loopback address, which is why the emulator reaches this stack through
+# `adb reverse` rather than 10.0.2.2. See docs/engineering/WINDOWS_SETUP.md.
+[auth.external.google]
+enabled = true
+client_id = "env(SUPABASE_AUTH_EXTERNAL_GOOGLE_CLIENT_ID)"
+# DO NOT commit your OAuth provider secret to git. Use environment variable substitution instead:
+secret = "env(SUPABASE_AUTH_EXTERNAL_GOOGLE_SECRET)"
+# Overrides the default auth redirectUrl.
+redirect_uri = ""
+# Overrides the default auth provider URL.
+url = ""
+# Required for local sign in with Google auth — the nonce cannot round-trip
+# through the loopback redirect. Local stack only; cloud is unaffected.
+skip_nonce_check = true
+
 # Allow Solana wallet holders to sign in to your project via the Sign in with Solana (SIWS, EIP-4361) standard.
 # You can configure "web3" rate limit in the [auth.rate_limit] section and set up [auth.captcha] if self-hosting.
 [auth.web3.solana]

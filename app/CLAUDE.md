@@ -72,8 +72,7 @@ $env:PATH = "$env:JAVA_HOME\bin;$env:ANDROID_HOME\platform-tools;$env:ANDROID_HO
 ### Routing (Expo Router — file-based)
 
 - `app/_layout.tsx` — Root layout; auth state check, redirects to login or app
-- `app/(auth)/login.tsx` — Google OAuth + email/password login
-- `app/(auth)/forgot-password.tsx` — Password reset flow
+- `app/(auth)/login.tsx` — Google OAuth login (the only sign-in method)
 - `app/(app)/_layout.tsx` — Authenticated app shell with Stack navigator
 - `app/(app)/index.tsx` — Home / dashboard
 - `app/(app)/tasks.tsx` — Task list with AI creation input
@@ -182,7 +181,7 @@ across the app. Use an explicit ternary instead (see `src/components/ui/Card.tsx
 
 ### Backend
 
-Supabase PostgreSQL with Row Level Security. All migrations stored in `migrations/` folder. Auth supports Google OAuth via `expo-auth-session` and email/password. Uses `SECURITY DEFINER` functions for cross-user profile lookups. Auto-creates profile from OAuth sign-up.
+Supabase PostgreSQL with Row Level Security. All migrations stored in `migrations/` folder. Auth is Google OAuth only; email/password sign-in, sign-up and password reset were removed on 2026-08-18. Uses `SECURITY DEFINER` functions for cross-user profile lookups. Auto-creates profile from OAuth sign-up.
 
 ## Context Docs
 

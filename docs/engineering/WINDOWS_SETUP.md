@@ -66,13 +66,103 @@ every table came back with no grants (PostgREST then returned `42501`, which loo
 like an RLS bug). The CLI recreates the database properly, so that whole failure mode is
 gone — confirmed by `npm run verify:rls` passing 17/17 through PostgREST after a reset.
 
-## Emulator networking
+## Emulator networking — loopback, not `10.0.2.2`
 
-The Android emulator reaches the host at **`10.0.2.2`**, never `127.0.0.1`:
+The Android emulator's usual alias for the host is **`10.0.2.2`**, and that is what this
+project used until 2026-08-18. It no longer works, because **Google sign-in is now the only
+way into the app** and Google's OAuth console **rejects private IP addresses in an `http`
+redirect URI**. `http://10.0.2.2:55321/auth/v1/callback` cannot even be saved there;
+`http://127.0.0.1:55321/auth/v1/callback` can — loopback is the documented exception.
+
+So the emulator reaches the local stack over loopback, forwarded by `adb`:
+
+```bash
+npm run emu:reverse     # adb reverse tcp:55321 + tcp:8081
+```
 
 ```
-EXPO_PUBLIC_SUPABASE_URL=http://10.0.2.2:55321
+EXPO_PUBLIC_SUPABASE_URL=http://127.0.0.1:55321
 ```
+
+> `adb reverse` is **per device and does not survive an emulator reboot or an `adb
+> kill-server`**. Re-run `npm run emu:reverse` after either. The symptom when it is missing
+> is every request failing with "Network request failed" — not an auth error.
+
+### The dev bundle must load over loopback too, or the app hangs on a blank screen
+
+The emulator's NAT (`10.0.2.2`) **corrupts large chunked HTTP responses**. The Metro dev
+bundle is ~17 MB streamed as chunked multipart, and the framing desynchronises in transit:
+
+```
+Callback failure for call to http://10.0.2.2:8081/...
+java.net.ProtocolException: Expected leading [0-9a-fA-F] character but was 0x2d
+    at okhttp3.internal.http1.Http1ExchangeCodec$ChunkedSource.readChunkSize
+    at com.facebook.react.devsupport.MultipartStreamReader.readAllParts
+```
+
+`0x2d` is `-`, the first byte of a multipart boundary turning up where a chunk-size header
+belongs. The download never completes, so the JS context never initialises and the app sits
+on a **blank white screen** — no red box, no JS logs, and `uiautomator dump` shows an empty
+view tree. Metro looks healthy throughout and `10.0.2.2:8081/status` returns
+`packager-status:running`, which makes this very easy to misdiagnose.
+
+It is intermittent: a transfer occasionally survives, so the app can work once and then fail
+every time afterwards. **Restarting Metro, `expo start --clear`, `pm clear`, and rebooting
+the emulator all fail to fix it** — they are all treating the symptom.
+
+The fix is to load the bundle over `adb reverse` instead of the NAT:
+
+```bash
+adb shell am force-stop com.wowtodo.app
+adb shell am start -a android.intent.action.VIEW \
+  -d "wowtodo://expo-development-client/?url=http%3A%2F%2Flocalhost%3A8081"
+```
+
+`adb reverse` is a raw TCP relay and does not touch the payload, so the chunked stream
+arrives intact. Confirm with zero matches for `ProtocolException` in `adb logcat`.
+
+On a **physical device** use the machine's LAN IP instead; Google sign-in there goes through
+the cloud project, which already has its own redirect URIs configured.
+
+## Google sign-in on the local stack
+
+The local stack and the cloud project are **completely separate auth backends**. Enabling
+Google in the Supabase dashboard does nothing for the emulator. While `[auth.external.google]`
+was missing from `supabase/config.toml`, every emulator sign-in rendered a white page showing
+
+```json
+{"code":400,"error_code":"validation_failed","msg":"Unsupported provider: provider is not enabled"}
+```
+
+Google is now enabled in `supabase/config.toml`, reading credentials from `app/.env` — the
+Supabase CLI resolves `env(...)` substitutions from a `.env` in the directory the command
+runs in, so no shell exports are needed:
+
+```
+SUPABASE_AUTH_EXTERNAL_GOOGLE_CLIENT_ID=…apps.googleusercontent.com
+SUPABASE_AUTH_EXTERNAL_GOOGLE_SECRET=…
+```
+
+Reuse the **same** Google OAuth client as the cloud project, and add one entry to its
+**Authorized redirect URIs** in the Google Cloud console:
+
+```
+http://127.0.0.1:55321/auth/v1/callback
+```
+
+`skip_nonce_check = true` is set for the local provider — the nonce cannot round-trip through
+the loopback redirect. It applies to the local stack only.
+
+**Config changes need a stack restart** (`supabase stop && supabase start`); `supabase start`
+alone will not pick them up. Verify with:
+
+```bash
+curl -s http://127.0.0.1:55321/auth/v1/settings   # expect "google":true
+```
+
+Email/password remains enabled on the local stack even though the app no longer offers it:
+`npm run verify:rls` creates its fixtures through the email signup and password-grant
+endpoints. That is a test harness, not a product surface.
 
 ## Emulator microphone — required for voice
 

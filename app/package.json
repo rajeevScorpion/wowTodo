@@ -5,6 +5,8 @@
   "scripts": {
     "start": "expo start",
     "android": "expo run:android",
+    "emu:reverse": "adb reverse tcp:55321 tcp:55321 && adb reverse tcp:8081 tcp:8081",
+    "emu:launch": "adb shell am force-stop com.wowtodo.app && adb shell am start -a android.intent.action.VIEW -d \"wowtodo://expo-development-client/?url=http%3A%2F%2Flocalhost%3A8081\"",
     "ios": "expo run:ios",
     "web": "expo start --web",
     "db:reset:local": "supabase db reset",

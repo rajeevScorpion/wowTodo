@@ -7,13 +7,33 @@ Full evidence: [120 audit](../audits/120_ARCHITECTURE_BACKEND_DATA_AND_SECURITY_
 
 | Aspect | Implementation |
 |---|---|
-| Providers | Google OAuth (`expo-auth-session`) + email/password |
+| Providers | **Google OAuth only** — email/password sign-in, sign-up and password reset were removed on 2026-08-18 |
 | Session store | AsyncStorage via `createClient({ auth: { storage: AsyncStorage } })` |
 | Refresh | `autoRefreshToken: true`; `startAutoRefresh`/`stopAutoRefresh` driven by `AppState` |
 | Deep links | scheme `wowtodo`; `wowtodo://callback`, `exp://127.0.0.1:8081/--/callback` |
 | Profile provisioning | `get_or_create_user_profile` on first sign-in |
 | Sign-out | `supabase.auth.signOut()` only — ⚠️ **F2** |
 | Account deletion | ❌ **not implemented** — Google Play requires this |
+
+### Google-only sign-in
+
+The app offers exactly one way in. This removes password storage, reset emails and the
+"check your email to confirm" dead end from the product entirely, and it means the only
+credential WowTodo ever handles is an OAuth token it did not mint.
+
+Existing email/password accounts were **not** deleted. GoTrue links a Google identity onto
+an existing user when the verified Google address matches the account email, so a user who
+originally signed up with a Gmail address keeps their data and simply arrives via Google
+instead. A user whose account email is not a Google-capable address would be locked out —
+the split was not measurable from this machine (the management API token is unauthorized
+here), so **confirm the provider breakdown in the dashboard before removing the email
+provider server-side**.
+
+The email provider is still enabled on both stacks. Removing the UI removes the product
+surface, not the endpoint: `POST /auth/v1/signup` still works. Disabling it in the cloud
+dashboard is the server-side half of this change and is an owner action, gated on the
+check above. It must stay enabled on the **local** stack regardless — `npm run verify:rls`
+builds its fixtures through the email signup and password-grant endpoints.
 
 ## Secret placement
 
