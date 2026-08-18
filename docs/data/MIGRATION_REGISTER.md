@@ -15,11 +15,11 @@ only — filenames are not being rewritten.
 **0013 and 0014 are applied locally AND to cloud** (cloud: 2026-08-18, verified by schema
 dump plus a rolled-back behavioural test).
 
-**0015 is applied LOCALLY ONLY.** It has not been pushed to cloud — `npm run db:diff:cloud`
-will therefore report DRIFT until it is, which is correct rather than a fault. It must be
-pushed together with the matching `ai-proxy` deploy: the function calls `consume_ai_quota`
-and fails closed with a 503 if the RPC is absent, so deploying the function first would
-take AI generation down. Push the migration first, then deploy the function.
+**0015 is applied locally AND to cloud** (cloud: 2026-08-18). It was pushed *before* the
+matching `ai-proxy` deploy, which is the required order: the function calls
+`consume_ai_quota` and fails closed with a 503 if the RPC is absent, so deploying the
+function first would have taken AI generation down. `db:diff:cloud` hashes identical
+(`5736de1d4d29aa9a`, 40698 bytes both sides).
 
 The next new migration must be **`0016`**.
 
