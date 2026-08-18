@@ -11,7 +11,7 @@ Triage and fix plan: prompt 180.
 | ~~F1~~ | ~~P0~~ | RLS | Share recipient can rewrite and seize ownership of the owner's todo | ✅ **FIXED** — migration 0013 |
 | ~~F2~~ | ~~P1~~ | Auth | Sign-out leaves previous user's cached data and reminders on device | ✅ **FIXED** — `clearLocalUserData`, 7 tests |
 | **F3** | P1 | Backend | `ai-proxy` has no rate limit or body-size cap | OPEN |
-| **F4** | P1 | Reliability | No timeouts or cancellation anywhere | OPEN |
+| **F4** | P1 | Reliability | No timeouts or cancellation anywhere | 🟡 **PARTIAL** — all AI requests now time out (4 tests); no caller passes an `AbortSignal` yet, so cancellation exists but is not wired to any UI affordance |
 | ~~F5~~ | ~~P1~~ | Privacy | `search_users` discloses every user's email | ✅ **FIXED** — migration 0013 |
 | **D1** | P1 | Play policy | No in-app account deletion path | OPEN |
 | **D2** | P1 | Play policy | No privacy policy — blocks the Data Safety form | OPEN |
