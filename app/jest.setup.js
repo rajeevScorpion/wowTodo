@@ -8,6 +8,8 @@ process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY = process.env.EXPO_PUBLIC_SUPABASE_ANO
 jest.mock('expo-notifications', () => ({
     scheduleNotificationAsync: jest.fn(async () => 'notification-id'),
     cancelScheduledNotificationAsync: jest.fn(async () => undefined),
+    cancelAllScheduledNotificationsAsync: jest.fn(async () => undefined),
+    dismissAllNotificationsAsync: jest.fn(async () => undefined),
     setNotificationChannelAsync: jest.fn(async () => undefined),
     setNotificationHandler: jest.fn(),
     getPermissionsAsync: jest.fn(async () => ({ status: 'granted' })),

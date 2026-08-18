@@ -10,6 +10,7 @@ import { StatusBar } from 'expo-status-bar';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import tamaguiConfig from '../src/design-system/tamagui.config';
+import { QUERY_CACHE_KEY } from '../src/lib/storageKeys';
 import { setupNotifications } from '../src/services/reminders/setup';
 import { syncReminderWindow } from '../src/services/reminders/scheduler';
 import * as Notifications from 'expo-notifications';
@@ -37,7 +38,7 @@ const queryClient = new QueryClient({
 
 const asyncStoragePersister = createAsyncStoragePersister({
     storage: AsyncStorage,
-    key: 'wowtodo-query-cache',
+    key: QUERY_CACHE_KEY,
     throttleTime: 3000, // write to AsyncStorage at most once per 3 seconds
 });
 

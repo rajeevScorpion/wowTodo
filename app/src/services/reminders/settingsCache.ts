@@ -1,7 +1,6 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { ReminderSettings } from '../../types';
-
-const CACHE_KEY_PREFIX = '@reminder_settings_';
+import { REMINDER_SETTINGS_KEY_PREFIX as CACHE_KEY_PREFIX } from '../../lib/storageKeys';
 
 export async function cacheReminderSettings(
     userId: string,

@@ -9,7 +9,7 @@ Triage and fix plan: prompt 180.
 | ID | Sev | Area | Summary | Status |
 |---|---|---|---|---|
 | ~~F1~~ | ~~P0~~ | RLS | Share recipient can rewrite and seize ownership of the owner's todo | ✅ **FIXED** — migration 0013 |
-| **F2** | P1 | Auth | Sign-out leaves previous user's cached data and reminders on device | OPEN |
+| ~~F2~~ | ~~P1~~ | Auth | Sign-out leaves previous user's cached data and reminders on device | ✅ **FIXED** — `clearLocalUserData`, 7 tests |
 | **F3** | P1 | Backend | `ai-proxy` has no rate limit or body-size cap | OPEN |
 | **F4** | P1 | Reliability | No timeouts or cancellation anywhere | OPEN |
 | ~~F5~~ | ~~P1~~ | Privacy | `search_users` discloses every user's email | ✅ **FIXED** — migration 0013 |
@@ -109,7 +109,7 @@ trigger now restricts non-owners to the `completed` column, comparing the whole 
 default rather than silently becoming writable. Verified 17/17 in `npm run verify:rls`:
 recipients can still toggle completion, owners are unaffected.
 
-### F2 — P1 · Sign-out leaves data behind
+### F2 — P1 · Sign-out leaves data behind  ✅ FIXED
 
 `onAuthStateChange` discards the event, so `SIGNED_OUT` triggers nothing. Three consequences:
 
@@ -118,6 +118,26 @@ recipients can still toggle completion, owners are unaffected.
 2. Scheduled notifications are never cancelled — the previous user's reminders keep firing,
    showing their private todo titles on the lock screen.
 3. `clearReminderSettingsCache()` exists with **zero call sites** repo-wide.
+
+**A fourth was found while fixing it.** `LAST_WINDOW_SYNC_KEY` is a *global*, not per-user,
+throttle timestamp with a 30-minute window. Left behind at sign-out, it made
+`syncReminderWindow` return `0` immediately for the **next** account — so a second user
+signing in on the same device within 30 minutes had **no reminders scheduled at all**, with
+nothing to indicate it.
+
+**Resolved.** `services/session/clearLocalUserData.ts` cancels and dismisses all OS
+notifications, clears the in-memory *and* persisted query cache, and removes both reminder
+keys. It is driven from `AuthProvider`'s `onAuthStateChange` rather than the settings
+button, so it covers every route out of a session — expired refresh token and deleted
+account included — and it also fires when the account changes without a `SIGNED_OUT` in
+between. Each step is independently guarded so one failure cannot leave a half-cleared
+device, and the call is not awaited because Supabase serialises auth callbacks.
+
+Per-user AsyncStorage keys are now declared together in `lib/storageKeys.ts`; keys defined
+beside the code that wrote them are what the original sign-out path missed.
+
+Covered by 7 tests. Verified by mutation: stubbing the function to a no-op fails all 7,
+so they genuinely pin the old behaviour. Device confirmation belongs to Slice 9.
 
 ### F5 — P1 · Email enumeration  ✅ FIXED (migration 0013)
 

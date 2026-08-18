@@ -2,6 +2,7 @@ import * as Notifications from 'expo-notifications';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { supabase } from '../../lib/supabase';
 import { isExpoGo } from '../../lib/expoGoDetect';
+import { LAST_WINDOW_SYNC_KEY } from '../../lib/storageKeys';
 import type { Database } from '../../types/database';
 import {
     Todo,
@@ -320,7 +321,6 @@ export async function rescheduleAllReminders(
 }
 
 const WINDOW_SYNC_THROTTLE_MS = 30 * 60 * 1000; // 30 minutes
-const LAST_WINDOW_SYNC_KEY = 'wowtodo:reminders:lastWindowSync';
 
 /**
  * Top up the rolling reminder window.
