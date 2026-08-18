@@ -7,13 +7,16 @@
     "android": "expo run:android",
     "ios": "expo run:ios",
     "web": "expo start --web",
-    "db:reset:local": "node scripts/db-reset-local.mjs",
+    "db:reset:local": "supabase db reset",
     "typecheck": "tsc --noEmit",
     "postinstall": "patch-package",
     "gen:types": "supabase gen types typescript --local > src/types/database.ts",
     "test": "jest",
     "test:watch": "jest --watch",
-    "verify:rls": "node scripts/verify-rls.mjs"
+    "verify:rls": "node scripts/verify-rls.mjs",
+    "db:push": "supabase db push",
+    "db:status": "supabase migration list --linked",
+    "db:diff:cloud": "node scripts/db-diff-cloud.mjs"
   },
   "dependencies": {
     "@react-native-async-storage/async-storage": "2.2.0",

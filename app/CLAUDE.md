@@ -23,7 +23,10 @@ npx expo run:ios        # Build and run on iOS
 npx expo start --web    # Run web version directly
 
 npm run typecheck       # tsc --noEmit — currently clean, keep it that way
-npm run db:reset:local  # replay all migrations into the local Supabase DB
+npm run db:reset:local  # supabase db reset — replay all migrations into local
+npm run db:push         # apply pending migrations to the cloud project
+npm run db:status       # local vs remote migration history, side by side
+npm run db:diff:cloud   # prove local and cloud schemas are identical
 npm run gen:types       # regenerate src/types/database.ts from the local schema
 ```
 
@@ -247,10 +250,15 @@ Repository documentation: [`docs/`](../docs/) — start with
   delete, rewrite or reorganise working code to make it look cleaner.
 - **Inspect before concluding.** The repository and verified runtime behaviour are the
   source of truth. Never claim a build or test that was not run.
-- **Every schema change** needs a numbered forward migration *and* a paired rollback, with
-  the number in both headers, plus a row in
-  [MIGRATION_REGISTER.md](../docs/data/MIGRATION_REGISTER.md). Next number: **0015**.
-  Regenerate types afterwards (`npm run gen:types`).
+- **Every schema change** goes in `supabase/migrations/` via `supabase migration new`, and
+  needs a paired rollback in `migrations/rollbacks/` plus a row in
+  [MIGRATION_REGISTER.md](../docs/data/MIGRATION_REGISTER.md). Regenerate types afterwards
+  (`npm run gen:types`).
+- **Never put a rollback in `supabase/migrations/`** — the CLI applies every `.sql` file
+  there and would run the rollback in the same pass as the migration.
+- **A green local reset is not evidence about cloud.** 0013 and 0014 passed locally and
+  were absent from production for days, leaving a P0 live. After pushing, confirm with
+  `npm run db:diff:cloud` — it must print IDENTICAL.
 - **No broad package upgrades** merely because a newer version exists. See
   [DEPENDENCY_REGISTER.md](../docs/engineering/DEPENDENCY_REGISTER.md).
 - **Never print or commit secret values.** `.env` and `supabase/.temp/` are gitignored —

@@ -56,32 +56,49 @@ against the local mirror and verified to restore prior behaviour.
 5. Add the row to this register **and** to `MIGRATION_ORDER.md`.
 6. Regenerate types afterwards: `npm run gen:types`.
 
-## Applying a migration to the CLOUD project
+## Workflow — local and cloud are kept identical by the CLI
 
-There is **no `supabase/migrations/` directory**, so the CLI has no migration history and
-`db push` has nothing to push. Cloud schema changes are applied explicitly. Migrations
-0013 and 0014 were absent from cloud for days after passing locally — a green
-`db:reset:local` is **not** evidence that production has the change.
-
-The CLI does **not** need the database password for `--linked` commands; it provisions a
-temporary login role from the management API token:
+Migrations live in **`app/supabase/migrations/`** and are managed by the Supabase CLI.
+`app/migrations/` now holds **rollbacks only**.
 
 ```bash
-./node_modules/.bin/supabase db dump --linked -s public -f cloud-schema.sql   # read
-./node_modules/.bin/supabase migration list --linked                          # read
+npm run db:reset:local   # replay every migration into the local database
+npm run db:push          # apply pending migrations to cloud
+npm run db:status        # local vs remote history, side by side
+npm run db:diff:cloud    # prove the two schemas are identical
 ```
 
-To apply, connect to the **session** pooler on port **5432**. Port 6543 is the transaction
-pooler and is the wrong place for DDL:
+**Adding a migration:**
 
 ```bash
-PGPASSWORD=... psql -h aws-1-ap-south-1.pooler.supabase.com -p 5432 \
-  -U postgres.<project-ref> -d postgres -X -v ON_ERROR_STOP=1 \
-  -f migrations/00NN_name.sql
+supabase migration new <name>        # creates supabase/migrations/<timestamp>_<name>.sql
+# write the forward SQL, plus a rollback in app/migrations/rollbacks/
+npm run db:reset:local && npm run verify:rls
+npm run db:push
+npm run db:diff:cloud                # must print IDENTICAL
+npm run gen:types
 ```
 
-Always re-read the schema afterwards to confirm each object exists. Do not treat the
-absence of an error as proof.
+**Rollbacks must never go in `supabase/migrations/`.** The CLI applies every `.sql` file in
+that directory, so a rollback beside its forward migration would run in the same pass and
+undo it.
+
+The CLI does **not** need the database password for `--linked` commands — it provisions a
+temporary login role from the management API token. If you ever apply SQL by hand instead,
+use the **session** pooler on port **5432**; 6543 is the transaction pooler and is the
+wrong place for DDL.
+
+### Why this exists
+
+Before 2026-08-18 there was no `supabase/migrations/` directory, so the CLI had no history
+and nothing ever pushed local migrations to cloud. Migrations 0013 and 0014 passed locally
+and were **absent from production for days**, leaving a P0 live. A green local reset was
+never evidence about cloud.
+
+Cloud history was reconciled with `supabase migration repair --status applied` for all 14
+existing migrations — they were already applied, so marking them avoided re-running
+non-idempotent SQL against a live database. `db push` then reported "Remote database is up
+to date", and both schemas hash identically.
 
 ## Local reset caveat
 

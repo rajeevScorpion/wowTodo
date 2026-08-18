@@ -54,12 +54,17 @@ Supabase project on this machine.
 ```bash
 cd app
 supabase start            # API 55321 · DB 55322 · Studio 55323
-npm run db:reset:local    # replay all 12 migrations in dependency order
+npm run db:reset:local    # supabase db reset — replay all 14 migrations
+npm run db:diff:cloud     # confirm local matches the cloud project
 ```
 
-`db:reset:local` resolves its container from `supabase/config.toml` `project_id`
-(`supabase_db_wowtodo`) and refuses to run against anything else, so it cannot touch the
-cloud project.
+`db:reset:local` is `supabase db reset`, which acts on the local stack defined by
+`supabase/config.toml` and cannot touch the cloud project. It replaced a hand-rolled
+script that replayed a hardcoded file list; that script also had to restore Supabase's
+DEFAULT PRIVILEGES by hand, because its `drop schema public cascade` destroyed them and
+every table came back with no grants (PostgREST then returned `42501`, which looks exactly
+like an RLS bug). The CLI recreates the database properly, so that whole failure mode is
+gone — confirmed by `npm run verify:rls` passing 17/17 through PostgREST after a reset.
 
 ## Emulator networking
 

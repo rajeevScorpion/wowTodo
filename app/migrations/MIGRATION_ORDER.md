@@ -1,55 +1,51 @@
-# Migration Order
+# Migration order — superseded
 
-The SQL files in this folder are **not** self-ordering — their filenames carry no
-sequence number or timestamp, and several depend on objects created by earlier
-files. Applying them alphabetically will fail.
+**Migrations now live in [`../supabase/migrations/`](../supabase/migrations/) and are
+managed by the Supabase CLI.** Order is encoded in the filename timestamp, so there is no
+longer a hand-maintained order list to keep in sync — that list was the thing that could
+drift.
 
-This is the authoritative order. It was derived from git history in the original
-`goodtodo` repository by recording the commit in which each file first appeared
-(`git log --reverse --diff-filter=A -- '*.sql'`), so it reflects the order in
-which the migrations were actually written and applied.
+This directory now holds **rollbacks only** ([`rollbacks/`](rollbacks/)). Rollbacks must
+never be placed in `supabase/migrations/`: the CLI applies every `.sql` file it finds
+there, so a rollback sitting alongside its forward migration would be executed as part of
+the migration run and immediately undo it.
 
-| # | Forward migration | Rollback | First committed |
-|---|---|---|---|
-| 1 | `supabase_schema.sql` (base: tasks, todos) | — (base schema) | 2026-02-10 |
-| 2 | `supabase_migration_add_task_groups.sql` | ❌ none | 2026-02-20 |
-| 3 | `supabase_migration_add_user_profiles.sql` | `supabase_rollback_user_profiles.sql` | 2026-02-24 |
-| 4 | `supabase_migration_reminders.sql` | `supabase_migration_reminders_rollback.sql` | 2026-02-27 |
-| 5 | `supabase_migration_branches.sql` | `supabase_rollback_branches.sql` | 2026-03-02 |
-| 6 | `supabase_migration_sharing.sql` | `supabase_rollback_sharing.sql` | 2026-03-06 |
-| 7 | `supabase_fix_rls_circular.sql` | ❌ none | 2026-03-06 |
-| 8 | `supabase_fix_search_users.sql` | ❌ none | 2026-03-06 |
-| 9 | `supabase_migration_profiles_email.sql` | `supabase_rollback_profiles_email.sql` | 2026-03-09 |
-| 10 | `supabase_migration_sharing_peek.sql` | `supabase_rollback_sharing_peek.sql` | 2026-03-09 |
-| 11 | `supabase_migration_bugfix_triggers.sql` | `supabase_rollback_bugfix_triggers.sql` | 2026-03-10 |
-| 12 | `supabase_migration_get_profiles_by_ids.sql` | `supabase_rollback_get_profiles_by_ids.sql` | 2026-03-10 |
-| 13 | `0013_restrict_shared_todo_updates_and_user_search.sql` | `0013_restrict_shared_todo_updates_and_user_search.rollback.sql` | 2026-08-17 |
-| 14 | `0014_unblock_deleting_tasks_with_branches.sql` | `0014_unblock_deleting_tasks_with_branches.rollback.sql` | 2026-08-18 |
-
-Items 11 and 12 arrived in the same commit (`6de1f8d`) and are independent of
-each other.
-
-From 13 onward the filename carries the sequence number, so the file list and
-this table cannot drift apart. Both have completed the full forward → rollback →
-reapply loop against the local mirror.
-
-## Known gaps
-
-Three forward migrations have **no paired rollback** (#2, #7, #8). Per
-`AI_CODER_PROMPTS/WOWTODO_REVIVAL_V1/00_COMMON/02_MIGRATION_AND_ROLLBACK_STANDARD.md`
-every forward migration requires one. These are pre-existing and are tracked as a
-P1 finding from the Prompt 100 audit — they are not retro-fitted here because
-writing an untested rollback is worse than recording its absence.
-
-## Applying to a local database
+## Commands
 
 ```bash
-cd app
-supabase start
-npm run db:reset:local     # drops, recreates and applies every file in the order above
+npm run db:reset:local   # supabase db reset  — replay every migration into local
+npm run db:push          # supabase db push   — apply pending migrations to cloud
+npm run db:status        # local vs remote migration history, side by side
+npm run db:diff:cloud    # prove the local and cloud schemas are identical
 ```
 
-Existing filenames are deliberately **not** renamed to the pack's four-digit
-numbering standard; that standard applies to migrations created from now on.
-Renaming applied migrations would break the correspondence with the deployed
-cloud database.
+## Renamed files
+
+Kept for traceability with older commits and documents. Content was unchanged by the
+rename — these are `git mv` moves.
+
+| Old name (`app/migrations/`) | New name (`app/supabase/migrations/`) |
+|---|---|
+| `supabase_schema.sql` | `20260301000001_initial_schema.sql` |
+| `supabase_migration_add_task_groups.sql` | `20260301000002_add_task_groups.sql` |
+| `supabase_migration_add_user_profiles.sql` | `20260301000003_add_user_profiles.sql` |
+| `supabase_migration_reminders.sql` | `20260301000004_reminders.sql` |
+| `supabase_migration_branches.sql` | `20260301000005_branches.sql` |
+| `supabase_migration_sharing.sql` | `20260301000006_sharing.sql` |
+| `supabase_fix_rls_circular.sql` | `20260301000007_fix_rls_circular.sql` |
+| `supabase_fix_search_users.sql` | `20260301000008_fix_search_users.sql` |
+| `supabase_migration_profiles_email.sql` | `20260309000009_profiles_email.sql` |
+| `supabase_migration_sharing_peek.sql` | `20260309000010_sharing_peek.sql` |
+| `supabase_migration_bugfix_triggers.sql` | `20260310000011_bugfix_triggers.sql` |
+| `supabase_migration_get_profiles_by_ids.sql` | `20260310000012_get_profiles_by_ids.sql` |
+| `0013_restrict_shared_todo_updates_and_user_search.sql` | `20260817000013_restrict_shared_todo_updates_and_user_search.sql` |
+| `0014_unblock_deleting_tasks_with_branches.sql` | `20260818000014_unblock_deleting_tasks_with_branches.sql` |
+
+The first eight have no recorded date, so they were given ordered synthetic timestamps on
+`2026-03-01` that preserve the sequence the project actually applied them in. Items 9-14
+use their real dates from the previous version of this file.
+
+Timestamps are **history**, not a claim about when the file was written. Do not renumber
+them: the same values are recorded in the cloud project's
+`supabase_migrations.schema_migrations` table, and changing one would make the CLI think a
+migration is missing and try to apply it again.
