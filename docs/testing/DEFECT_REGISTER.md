@@ -31,7 +31,9 @@ Triage and fix plan: prompt 180.
 | **F7** | P2 | Migrations | 3 migrations unpaired; 9 of 10 rollbacks still unexecuted | OPEN |
 | **F8** | P2 | Data | `in_app_notifications` has no DELETE policy or retention | OPEN |
 | ~~D5~~ | ~~P2~~ | Secrets | OpenAI/Gemini keys rotated **and old keys revoked** | ✅ **DONE** — verified: the old key now returns 401 |
-| **D5b** | P1 | Secrets | Cloud Edge Function secrets still unset — production AI returns `503` | OPEN — needs deploy |
+| ~~D5b~~ | ~~P1~~ | Secrets | Cloud Edge Function secrets unset — production AI returned `503` | ✅ **FIXED** — secrets set + `ai-proxy` deployed, 5/5 verified in production |
+| ~~D7~~ | ~~P1~~ | Release | `eas.json` set no `env` — a store build shipped with **no Supabase URL or key** | ✅ **FIXED** — `env` added to `preview` + `production` |
+| **D8** | **P0?** | Schema | **Unverified whether migration 0013 (F1 + F5 fixes) is applied to the CLOUD database** | OPEN — needs owner |
 | **D6** | P3 | Docs | `app/CLAUDE.md` stale: lists `expo-av`, claims no test runner | OPEN |
 
 ---
@@ -130,6 +132,42 @@ name search returns the profile with `email` NULL; minimum 3-character query enf
 server-side. Both search modes in the UI still work, and shares are created with
 `recipient_id` rather than the address, so nothing in the flow depended on it.
 
+### D8 — P0? · Is the P0 fix actually live in production?
+
+Migration `0013` fixed **F1 (P0)** and **F5 (P1)**. It was written, tested and verified
+**against the local stack only** (`npm run verify:rls`, 17/17). There is **no evidence it
+has ever been applied to the cloud database**, and three things make that plausible:
+
+- there is no `supabase/migrations/` directory, so the CLI holds **no migration history**
+  for the linked project — cloud schema changes have been applied by hand;
+- `supabase/.temp/pooler-url` no longer authenticates (`password authentication failed`),
+  so the schema could not be introspected;
+- the CLI's access token lives in Windows Credential Manager, not on disk.
+
+A behavioural probe of `search_users` via PostgREST returned 0 rows for `'@'`, `'a'` and
+`'.com'` — **this is not evidence of the fix.** Called with the anon key, `auth.uid()` is
+NULL, so the pre-0013 predicate `id <> auth.uid()` evaluates to NULL and filters every row
+out. The vulnerable and fixed versions are indistinguishable from an unauthenticated call.
+
+**If 0013 is not applied to cloud, F1 is live in production**: any share recipient can
+rewrite and seize the owner's todo. Resolving this needs one of — the owner applying
+`0013` in the Studio SQL editor, a working database password, or a cloud test account to
+probe with a real authenticated JWT.
+
+### D7 — P1 · A store build would have had no backend  ✅ FIXED
+
+`.env` is gitignored, there is no `.easignore`, and `eas.json` declared no `env` on any
+profile — so `EXPO_PUBLIC_SUPABASE_URL` / `_ANON_KEY` were **undefined in an EAS build**.
+Both consumers fall back to `|| ''` (`lib/supabase.ts:7-8`, `services/ai/proxy.ts:11-12`),
+so the client would have been constructed against an empty URL and the shipped app would
+have reached nothing at all. Invisible to `tsc`, jest and the local emulator, all of which
+read the local `.env`.
+
+Fixed by adding `env` to the `preview` and `production` profiles. `development` is left
+untouched so the local `.env` still drives dev builds. The anon key is public by design —
+it ships inside the APK regardless and is guarded by RLS, which is precisely why F1/F5
+mattered.
+
 ---
 
 ## Resolved
@@ -150,4 +188,6 @@ server-side. Both search modes in the UI still work, and shares are created with
 | INF-2 | Supabase CLI was unpinned and resolved by npm cache state; clearing the cache pulled 2.114.0 and broke the local stack | `f6a7f3c` |
 | INF-3 | storage-api blocked local startup; unused service disabled | `f6a7f3c` |
 | F1 | **P0** — share recipient could rewrite and seize the owner's todo. Fixed by a `BEFORE UPDATE` trigger restricting non-owners to `completed`; verified the recipient can still toggle completion and the owner is unaffected | migration `0013` |
+| D5b | Cloud Edge Function secrets were unset, so production AI returned `503`. `supabase secrets set --env-file` + `functions deploy ai-proxy`. Verified in production 5/5: unauth 401 · disallowed model 400 · unknown target 400 · **real completion 200** · Gemini key present | (deploy) |
+| D7 | `eas.json` had no `env`, so a store build would have shipped with no Supabase URL or anon key and reached nothing | (this commit) |
 | F5 | **P1** — `search_users` email harvesting. Exact-email lookup still returns the address (the caller already has it); name search returns the profile with `email` NULL. Minimum 3-character query enforced server-side | migration `0013` |
