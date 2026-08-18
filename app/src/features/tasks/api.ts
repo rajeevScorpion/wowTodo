@@ -2,7 +2,29 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '../../lib/supabase';
 import { Task, Todo, TaskWithProgress, Database, AIGeneratedTodo } from '../../types';
 import { useAuth } from '../../providers/AuthProvider';
+import { useToast } from '../../contexts/ToastContext';
 import * as Crypto from 'expo-crypto';
+
+/**
+ * Turn a delete failure into something the user can act on.
+ *
+ * Optimistic deletes used to roll back with `_err` unused, so a failed delete
+ * looked like the row vanishing and silently reappearing with no explanation
+ * (DF-1). Whatever the cause, the user must be told the delete did not stick.
+ *
+ * 23503 is a foreign-key violation. Migration 0014 removed the known cause (a
+ * branched todo made its task undeletable), so this branch should now be
+ * unreachable — it is kept because reaching it silently is precisely the
+ * failure mode being fixed, and a new reference added later would otherwise
+ * reintroduce the same invisible bug.
+ */
+function deleteErrorMessage(err: unknown, subject: 'task' | 'todo'): string {
+    const code = (err as { code?: string } | null)?.code;
+    if (code === '23503') {
+        return `This ${subject} is still linked to something else and could not be deleted.`;
+    }
+    return `Could not delete the ${subject}. Please try again.`;
+}
 
 type BranchTaskWithProgress = Task & {
     todos: Todo[];
@@ -155,6 +177,7 @@ export const useCreateTaskWithTodos = () => {
 // Delete a task (optimistic — cascade deletes todos via DB)
 export const useDeleteTask = () => {
     const queryClient = useQueryClient();
+    const { showToast } = useToast();
 
     return useMutation({
         mutationFn: async (taskId: string) => {
@@ -175,10 +198,12 @@ export const useDeleteTask = () => {
 
             return { previousTasks };
         },
-        onError: (_err, _vars, context) => {
+        onError: (err, _vars, context) => {
             if (context?.previousTasks !== undefined) {
                 queryClient.setQueryData(taskKeys.all, context.previousTasks);
             }
+            // The task is about to reappear on screen. Say why.
+            showToast(deleteErrorMessage(err, 'task'), 'warning');
         },
         onSettled: () => {
             queryClient.invalidateQueries({ queryKey: taskKeys.all });
@@ -426,6 +451,7 @@ export const useReorderTodos = () => {
 // Delete a single todo (optimistic)
 export const useDeleteTodo = () => {
     const queryClient = useQueryClient();
+    const { showToast } = useToast();
 
     return useMutation({
         mutationFn: async ({
@@ -468,13 +494,15 @@ export const useDeleteTodo = () => {
 
             return { previousTodos, previousTasks, taskId };
         },
-        onError: (_err, _vars, context) => {
+        onError: (err, _vars, context) => {
             if (context?.previousTodos !== undefined) {
                 queryClient.setQueryData(taskKeys.todos(context.taskId), context.previousTodos);
             }
             if (context?.previousTasks !== undefined) {
                 queryClient.setQueryData(taskKeys.all, context.previousTasks);
             }
+            // The todo is about to reappear on screen. Say why.
+            showToast(deleteErrorMessage(err, 'todo'), 'warning');
         },
         onSettled: (_data, _err, { taskId }) => {
             queryClient.invalidateQueries({ queryKey: taskKeys.todos(taskId) });

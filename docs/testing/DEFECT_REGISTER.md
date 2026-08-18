@@ -17,7 +17,7 @@ Triage and fix plan: prompt 180.
 | **D2** | P1 | Play policy | No privacy policy — blocks the Data Safety form | OPEN |
 | **D3** | P1 | Build | `expo-asset` not a direct dependency (`expo-doctor` 17/18) | OPEN |
 | **D4** | P1 | Release | Release build is debug-signed (Expo template default) | OPEN |
-| **DF-1** | P1 | Branches | A task containing a branched todo **cannot be deleted** — 409, silently rolled back with no message | OPEN |
+| ~~DF-1~~ | ~~P1~~ | Branches | A task containing a branched todo **cannot be deleted** — 409, silently rolled back with no message | ✅ **FIXED** — migration 0014 + toast |
 | ~~VE-1~~ | ~~P1~~ | AI prompt | Named weekdays resolved to the wrong date | ✅ **FIXED** — `dateContext.ts`, 0/9 → 9/9 |
 | **VE-2** | P1 | AI prompt | Fabricates task lists from ambiguous/non-task speech; cannot ask for clarification | OPEN |
 | **VE-3** | P2 | AI prompt | `[LANGUAGE: Hindi]` ignored for romanised Hinglish input — returns English | OPEN |
@@ -87,6 +87,24 @@ and nothing says so. The delete affordance is offered unconditionally —
 `TodoItem.tsx:105` uses `is_branched` only to gate the checkbox.
 
 Full evidence: [150 audit](../audits/150_FEATURE_REGRESSION_AND_EDGE_CASE_AUDIT.md).
+
+**Resolved (migration 0014).** Reproduced first against the local mirror — the delete
+failed with `tasks_parent_todo_id_fkey` exactly as reported — then the constraint was
+changed from `ON DELETE RESTRICT` to `ON DELETE SET NULL` and the identical script re-run:
+the parent task deletes, the branch task survives with `parent_todo_id IS NULL`, and the
+branch task's own todos survive.
+
+`SET NULL` was chosen over `CASCADE` deliberately: cascading would silently destroy a
+branch task and everything inside it when the user deleted an unrelated parent, which is
+real data loss from an action whose blast radius is invisible in the UI. It also matches
+the existing precedent on the same table — `tasks_group_id_fkey` is already `SET NULL`, so
+deleting a group leaves its tasks intact and ungrouped. Orphaned branch tasks stay visible
+because the owner policy is `auth.uid() = user_id` and ignores `parent_todo_id`.
+
+The silent half is fixed too: both delete hooks now surface a toast on failure instead of
+leaving `_err` unused, so a rolled-back delete can never again look like a row vanishing
+and reappearing for no reason. The rollback was executed and confirmed to restore
+`RESTRICT` (and with it the defect), then 0014 was reapplied; RLS remains 17/17.
 
 ### F1 — P0 · Recipient can seize the owner's todo  ✅ FIXED (migration 0013)
 

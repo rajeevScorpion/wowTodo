@@ -23,9 +23,15 @@ which the migrations were actually written and applied.
 | 10 | `supabase_migration_sharing_peek.sql` | `supabase_rollback_sharing_peek.sql` | 2026-03-09 |
 | 11 | `supabase_migration_bugfix_triggers.sql` | `supabase_rollback_bugfix_triggers.sql` | 2026-03-10 |
 | 12 | `supabase_migration_get_profiles_by_ids.sql` | `supabase_rollback_get_profiles_by_ids.sql` | 2026-03-10 |
+| 13 | `0013_restrict_shared_todo_updates_and_user_search.sql` | `0013_restrict_shared_todo_updates_and_user_search.rollback.sql` | 2026-08-17 |
+| 14 | `0014_unblock_deleting_tasks_with_branches.sql` | `0014_unblock_deleting_tasks_with_branches.rollback.sql` | 2026-08-18 |
 
 Items 11 and 12 arrived in the same commit (`6de1f8d`) and are independent of
 each other.
+
+From 13 onward the filename carries the sequence number, so the file list and
+this table cannot drift apart. Both have completed the full forward → rollback →
+reapply loop against the local mirror.
 
 ## Known gaps
 

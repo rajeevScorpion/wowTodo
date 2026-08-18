@@ -249,7 +249,7 @@ Repository documentation: [`docs/`](../docs/) — start with
   source of truth. Never claim a build or test that was not run.
 - **Every schema change** needs a numbered forward migration *and* a paired rollback, with
   the number in both headers, plus a row in
-  [MIGRATION_REGISTER.md](../docs/data/MIGRATION_REGISTER.md). Next number: **0013**.
+  [MIGRATION_REGISTER.md](../docs/data/MIGRATION_REGISTER.md). Next number: **0015**.
   Regenerate types afterwards (`npm run gen:types`).
 - **No broad package upgrades** merely because a newer version exists. See
   [DEPENDENCY_REGISTER.md](../docs/engineering/DEPENDENCY_REGISTER.md).

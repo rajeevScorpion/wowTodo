@@ -35,6 +35,7 @@ const ORDER = [
     // docs/data/MIGRATION_REGISTER.md. Numbered files sort correctly, so new
     // migrations append here in numeric order.
     '0013_restrict_shared_todo_updates_and_user_search.sql',
+    '0014_unblock_deleting_tasks_with_branches.sql',
 ];
 
 function sh(cmd, args, opts = {}) {
