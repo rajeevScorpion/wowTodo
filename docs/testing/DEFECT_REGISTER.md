@@ -15,7 +15,7 @@ Triage and fix plan: prompt 180.
 | ~~F5~~ | ~~P1~~ | Privacy | `search_users` discloses every user's email | ✅ **FIXED** — migration 0013 |
 | **D1** | P1 | Play policy | No in-app account deletion path | OPEN |
 | **D2** | P1 | Play policy | No privacy policy — blocks the Data Safety form | OPEN |
-| **D3** | P1 | Build | `expo-asset` not a direct dependency (`expo-doctor` 17/18) | OPEN |
+| ~~D3~~ | ~~P1~~ | Build | `expo-asset` not a direct dependency (`expo-doctor` 17/18) | ✅ **FIXED** — `expo-doctor` now **18/18** |
 | **D4** | P1 | Release | Release build is debug-signed (Expo template default) | OPEN |
 | ~~DF-1~~ | ~~P1~~ | Branches | A task containing a branched todo **cannot be deleted** — 409, silently rolled back with no message | ✅ **FIXED** — migration 0014 + toast |
 | ~~VE-1~~ | ~~P1~~ | AI prompt | Named weekdays resolved to the wrong date | ✅ **FIXED** — `dateContext.ts`, 0/9 → 9/9 |
@@ -228,4 +228,5 @@ mattered.
 | F1 | **P0** — share recipient could rewrite and seize the owner's todo. Fixed by a `BEFORE UPDATE` trigger restricting non-owners to `completed`; verified the recipient can still toggle completion and the owner is unaffected | migration `0013` |
 | D5b | Cloud Edge Function secrets were unset, so production AI returned `503`. `supabase secrets set --env-file` + `functions deploy ai-proxy`. Verified in production 5/5: unauth 401 · disallowed model 400 · unknown target 400 · **real completion 200** · Gemini key present | (deploy) |
 | D7 | `eas.json` had no `env`, so a store build would have shipped with no Supabase URL or anon key and reached nothing | (this commit) |
+| D3 | `expo-asset` was a peer dependency of `expo-audio` supplied only by `overrides`, never declared. Declared directly at the version already resolved (`12.0.13`), so **no resolved version changed** — the lockfile diff is 3 lines. SDK 54 patch drift cleared at the same time (`expo` 54.0.37, `expo-constants` 18.0.14, `expo-updates` 29.0.20, `jest-expo` 54.0.18). `expo-doctor` **16/18 → 18/18** | (slice 8) |
 | F5 | **P1** — `search_users` email harvesting. Exact-email lookup still returns the address (the caller already has it); name search returns the profile with `email` NULL. Minimum 3-character query enforced server-side | migration `0013` |

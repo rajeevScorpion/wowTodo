@@ -42,6 +42,27 @@ tooling** that never reaches the device.
 
 Slices are ordered. Slices marked ⟂ can run in parallel with the one before.
 
+### Status — 2026-08-18
+
+| Slice | State | Evidence |
+|---|---|---|
+| 1 — security P0s | ✅ **done** | migration `0013`, RLS suite 17/17 |
+| 2 — production AI | ✅ **done** | secrets set + `ai-proxy` deployed, 5/5 verified against production |
+| 3 — account deletion | ⛔ not started | Play blocker, HIGH data risk |
+| 4 — sign-out cleanup | ✅ **done** | `clearLocalUserData`, 7 tests, mutation-verified |
+| 5 — timeouts + rate limiting | ⛔ not started | |
+| 6 — date extraction | ✅ **done** | `dateContext.ts`, 0/9 → 9/9 |
+| 7 — branch/delete deadlock | ✅ **done** | migration `0014`, reproduced then fixed, rollback executed |
+| 8 — build hygiene | ✅ **done** | `expo-doctor` 16/18 → **18/18** |
+| 9 — device pass | ⛔ not started | needs slices 3 and 5 to be worth running once |
+
+Found and fixed outside the original plan: **D7** — `eas.json` declared no `env`, so an
+EAS store build would have shipped with no Supabase URL or anon key and reached nothing.
+
+Opened outside the plan and **still owner-blocked**: **D8** — it is unverified whether
+migration `0013` (the F1 P0 fix) was ever applied to the **cloud** database. Slices 1 and 7
+were both verified against the local mirror only.
+
 ### Slice 1 — Close the two security P0s ⚠️ **BLOCKED ON AN OWNER DECISION**
 
 - **Problem:** F1 — a share recipient can rewrite and seize ownership of the owner's todo

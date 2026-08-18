@@ -25,10 +25,12 @@ Each item below was observed running, not inferred from code.
 | Android notifications | `POST_NOTIFICATIONS` `granted=true` at runtime |
 | Local Supabase mirrors cloud | 8 tables / 13 functions / 17 policies, diffed against linked project |
 | Type safety | `npm run typecheck` → 0 errors |
-| Unit tests | `npm test` → 12/12 passing (reminder scheduler) |
-| Migrations replay | `npm run db:reset:local` applies all 13 cleanly |
+| Unit tests | `npm test` → 26/26 passing (reminder scheduler, date context, sign-out cleanup) |
+| Migrations replay | `npm run db:reset:local` applies all 14 cleanly |
 | Authorisation suite | `npm run verify:rls` → 17/17, two real users through PostgREST |
-| Rollback verified | 0013 completed forward → verify → rollback → verify → reapply |
+| Rollback verified | 0013 **and** 0014 completed forward → verify → rollback → verify → reapply |
+| Dependency health | `npx expo-doctor` → **18/18** |
+| Production AI | `ai-proxy` deployed with rotated keys; real completion returned through the live function |
 | Play target API | release manifest `targetSdkVersion=36` — meets the 31 Aug 2026 rule |
 
 ## What is broken or open

@@ -68,12 +68,26 @@ end user. This is a developer-workstation supply-chain concern, **not a release 
 ## `overrides`
 
 ```json
-"overrides": { "expo-asset": "~12.0.13", "expo-constants": "~18.0.13" }
+"overrides": { "expo-asset": "$expo-asset", "expo-constants": "$expo-constants" }
 ```
 
 Present because `expo-audio@1.1.1` declares `expo-asset@~57.0.11`, which conflicts with
 SDK 54's `~12.0.13` and caused a native crash at launch. **Do not remove without
 rebuilding and confirming the app launches.**
+
+The `$name` form is npm's reference syntax: it forces every transitive copy to whatever
+the *direct* dependency resolves to. It replaced hardcoded ranges in slice 8 for a
+concrete reason — once `expo-asset` and `expo-constants` were both direct dependencies
+*and* overrides, npm refused to install at all:
+
+```
+npm error code EOVERRIDE
+npm error Override for expo-constants@~18.0.14 conflicts with direct dependency
+```
+
+A hardcoded override has to be hand-edited in lockstep with every version bump, and
+forgetting breaks `npm install` outright. `$name` cannot drift, so the pin keeps its
+original purpose — one consistent version everywhere — without a second place to update.
 
 ## Patches
 
