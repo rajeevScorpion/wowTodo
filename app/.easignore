@@ -1,0 +1,58 @@
+# What NOT to upload to EAS Build.
+#
+# When this file exists EAS uses it INSTEAD of .gitignore, so it must repeat
+# everything .gitignore excludes — otherwise node_modules and friends get
+# uploaded. Keep the two in sync.
+#
+# Why it exists: an EAS build failed with
+#   EBUSY: resource busy or locked, copyfile 'android/.gradle/8.14.3/checksums/checksums.lock'
+# because a local `gradlew assembleRelease` was running and holding that lock
+# while EAS tried to copy the project. Native build state is worthless to a
+# remote build — this project is CNG, so EAS runs `expo prebuild` itself and
+# regenerates android/ and ios/ from app.json.
+
+# --- mirrored from .gitignore ---
+node_modules/
+.tamagui/
+.expo/
+dist/
+web-build/
+expo-env.d.ts
+.kotlin/
+*.orig.*
+*.jks
+*.p8
+*.p12
+*.key
+*.mobileprovision
+.metro-health-check*
+npm-debug.*
+yarn-debug.*
+yarn-error.*
+.DS_Store
+*.pem
+.env*.local
+*.tsbuildinfo
+/ios
+/android
+.anonkey
+
+# --- belt and braces: never upload native build state ---
+# /android and /ios above already cover these, but they are spelled out so that
+# re-adding the native folders to source control later cannot silently start
+# uploading gigabytes of lock files and caches again.
+android/.gradle/
+android/build/
+android/app/build/
+android/.cxx/
+ios/build/
+ios/Pods/
+**/*.lock
+!package-lock.json
+!yarn.lock
+
+# Local-only material that must never reach a build server.
+.env
+supabase/functions/.env
+supabase/.temp/
+scripts/__pycache__/

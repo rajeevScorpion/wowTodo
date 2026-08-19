@@ -66,6 +66,20 @@ every table came back with no grants (PostgREST then returned `42501`, which loo
 like an RLS bug). The CLI recreates the database properly, so that whole failure mode is
 gone — confirmed by `npm run verify:rls` passing 17/17 through PostgREST after a reset.
 
+## The app points at CLOUD, not the local stack (since 2026-08-19)
+
+`app/.env` sets `EXPO_PUBLIC_SUPABASE_URL` to the **cloud** project. Before this, the
+emulator used the local stack while physical devices used cloud, so the same Google account
+showed two completely different task lists — nothing was out of sync, the two clients simply
+never shared a database. Pointing both at cloud is what makes device and emulator agree.
+
+Accepted trade-off: development traffic reads and writes **real user data** and counts
+against the project's quotas. The local stack is still used for `db:reset:local`,
+`db:diff:cloud` and `verify:rls`.
+
+The commented-out local block is kept in `.env`. To develop against the local stack, swap
+the two blocks back and follow the loopback section below — which then applies again.
+
 ## Emulator networking — loopback, not `10.0.2.2`
 
 The Android emulator's usual alias for the host is **`10.0.2.2`**, and that is what this
