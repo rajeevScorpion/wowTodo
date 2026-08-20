@@ -36,6 +36,7 @@ yarn-error.*
 /ios
 /android
 .anonkey
+.servicekey
 
 # --- belt and braces: never upload native build state ---
 # /android and /ios above already cover these, but they are spelled out so that

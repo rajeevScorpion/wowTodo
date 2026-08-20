@@ -31,9 +31,17 @@ npm run gen:types       # regenerate src/types/database.ts from the local schema
 ```
 
 ```bash
-npm test                # jest — 12 tests over the reminder scheduler
+npm test                # jest — 45 tests
 npm run test:watch
+npm run verify:rls               # authorisation suite, against the local stack
+npm run verify:account-deletion  # proves account deletion actually erases the data (D1)
 ```
+
+`verify:account-deletion` is not optional garnish: the app promises Google Play that
+deleting an account deletes the data, and that promise rests entirely on `on delete
+cascade`. Add a table with a `user_id` that does not cascade — or without the
+`supabase_auth_admin` grant from migration 0016 — and nothing else in the repo will notice.
+Run it after any migration that adds a table holding user data.
 
 `npm run typecheck` and `npm test` are the current correctness gates and both pass.
 No linter is configured yet.

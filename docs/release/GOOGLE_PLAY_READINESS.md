@@ -24,13 +24,37 @@ Policy snapshot: [`06_ANDROID_PLAY_POLICY_SNAPSHOT_2026-08-17.md`](../../AI_CODE
 | # | Blocker | Severity |
 |---|---|---|
 | B1 | **No privacy policy.** Required to complete the Data Safety form. Non-negotiable given audio leaves the device | **BLOCKER** |
-| B2 | **No in-app account deletion.** Play requires it for apps with account creation. Only `signOut` exists | **BLOCKER** |
+| ~~B2~~ | ~~**No in-app account deletion.**~~ | ✅ **RESOLVED** — see below |
 | B3 | **Data Safety form not mapped.** Must declare audio, email, name, user content, and third-party sharing with OpenAI/Google | **BLOCKER** |
 | B4 | **Release build is debug-signed** (`signingConfig signingConfigs.debug`). Play rejects it. Needs an upload keystore or confirmed EAS-managed signing | **BLOCKER** |
 | B5 | **F1 (P0)** — a share recipient can seize another user's data | **BLOCKER** |
 | B6 | **F5 (P1)** — every user's email is disclosed to any authenticated user | **BLOCKER** |
 | B7 | Never tested on a physical device | HIGH |
 | B8 | 12-tester / 14-day closed test may apply — depends on the owner's Play account age | **UNKNOWN** |
+
+## Account deletion (B2 / D1) — what to enter in the Play Console
+
+Play requires **both** halves, and grants the listing neither if only one exists.
+
+| Half | Where | Status |
+|---|---|---|
+| In-app path | **Settings → Delete account → type `DELETE`** | ✅ shipped |
+| Web URL, reachable without installing the app | `https://<site>/delete-account` | ✅ page written — **needs the site deployed and the real URL pasted into the Console** |
+
+The web URL goes in **Play Console → App content → Data safety → Data deletion**, as the
+"Account deletion URL". The page (`web/src/pages/DeleteAccount.tsx`) states the in-app
+steps, an email route for users who no longer have the app, and exactly what is deleted
+versus retained — Play reviewers read it, and it must keep matching what the code does.
+
+Deletion is immediate and total: one admin delete of the `auth.users` row cascades to all
+nine tables. Proven by `npm run verify:account-deletion` (31 assertions, both directions).
+
+Two owner actions remain:
+
+1. **Deploy the marketing site** and paste the live `/delete-account` URL into the Console.
+2. **Make `privacy@wowtodo.app` a real, monitored mailbox.** The page publishes it as the
+   route for users who cannot sign in; an address that bounces is a rejection risk and,
+   more importantly, a broken promise.
 
 ## Data Safety — preliminary map
 

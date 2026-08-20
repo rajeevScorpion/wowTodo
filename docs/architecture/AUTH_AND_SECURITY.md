@@ -35,6 +35,29 @@ dashboard is the server-side half of this change and is an owner action, gated o
 check above. It must stay enabled on the **local** stack regardless — `npm run verify:rls`
 builds its fixtures through the email signup and password-grant endpoints.
 
+### Account deletion
+
+Deleting an account is a **server-side** operation, in the `delete-account` Edge Function.
+RLS lets a user delete their own rows, but nothing short of the service role can delete the
+`auth.users` row — and leaving that behind means the account still exists and still signs
+in. The function therefore holds the only privileged step, and takes the account to delete
+from `/auth/v1/user` rather than from the request body, so there is no way to ask it to
+delete anyone other than yourself.
+
+One statement does the work — the admin delete of the auth row — and `on delete cascade`
+fans it out to all nine tables that reference `auth.users`. The single exception is
+`in_app_notifications.actor_id` (`on delete set null`): those rows are in a *different*
+user's inbox, so the link is severed rather than the row destroyed.
+
+That cascade needed a privilege fix (migration 0016). The RI trigger runs as
+`supabase_auth_admin`, which had **no grants at all** in `public` on either stack, so the
+first cascading delete was denied and GoTrue returned `Database error deleting user`. This
+was verified to be true of the **cloud** project as well, not just locally.
+
+Both halves are covered: `npm run verify:account-deletion` drives the real function against
+a real database and asserts both that the user's data is gone and that a second user's data
+survives; 7 jest tests cover what the device is left holding afterwards.
+
 ## Secret placement
 
 | Secret | Location | Ships to device? |
@@ -43,6 +66,7 @@ builds its fixtures through the email signup and password-grant endpoints.
 | Supabase service_role | not used by the app | No |
 | `OPENAI_API_KEY` | `ai-proxy` Edge Function env | **No** |
 | `GEMINI_API_KEY` | `ai-proxy` Edge Function env | **No** |
+| `SUPABASE_SERVICE_ROLE_KEY` | platform-injected into Edge Functions only | **No** |
 
 Verified by scanning a real production bundle (`expo export`, 8.45 MB Hermes):
 **1 JWT** (the anon key), **0** `sk-…`, **0** `AIza…`. Method validated with controls that

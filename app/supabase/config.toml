@@ -351,6 +351,16 @@ deno_version = 2
 # [edge_runtime.secrets]
 # secret_key = "env(SECRET_VALUE)"
 
+# Both functions require an authenticated caller. This is the platform default,
+# but it is stated explicitly because both are dangerous unauthenticated:
+# ai-proxy would become an open relay billed to the owner's OpenAI account, and
+# delete-account resolves *which* account to erase from the caller's token.
+[functions.ai-proxy]
+verify_jwt = true
+
+[functions.delete-account]
+verify_jwt = true
+
 [analytics]
 enabled = true
 port = 55327

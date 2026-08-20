@@ -42,4 +42,7 @@ yarn-error.*
 # generated native folders
 /ios
 /android
+# Cached local-stack keys (scripts/verify-*.mjs). Local only, but the service
+# role key bypasses RLS entirely — it must never be committed.
 .anonkey
+.servicekey

@@ -8,8 +8,10 @@ import { Button } from '../../src/components/ui/Button';
 import { Input } from '../../src/components/ui/Input';
 import { EditableChip } from '../../src/components/ui/EditableChip';
 import { ConfirmDialog } from '../../src/components/ui/ConfirmDialog';
-import { LogOut, Plus, FolderOpen, Palette, Smartphone, Sun, Moon, Check } from 'lucide-react-native';
+import { DeleteAccountDialog } from '../../src/components/DeleteAccountDialog';
+import { LogOut, Plus, FolderOpen, Palette, Smartphone, Sun, Moon, Check, Trash2 } from 'lucide-react-native';
 import { supabase } from '../../src/lib/supabase';
+import { deleteAccount } from '../../src/services/account/deleteAccount';
 import { useAuth } from '../../src/providers/AuthProvider';
 import { useGroups, useCreateGroup, useDeleteGroup, useRenameGroup } from '../../src/features/groups/api';
 import { useSemanticColors } from '../../src/design-system/useSemanticColors';
@@ -34,9 +36,29 @@ export default function SettingsScreen() {
     const [newGroupName, setNewGroupName] = useState('');
     const [editingGroupId, setEditingGroupId] = useState<string | null>(null);
     const [deleteDialogGroup, setDeleteDialogGroup] = useState<{ id: string; name: string } | null>(null);
+    const [deleteAccountOpen, setDeleteAccountOpen] = useState(false);
+    const [deletingAccount, setDeletingAccount] = useState(false);
+    const [deleteAccountError, setDeleteAccountError] = useState<string | null>(null);
 
     const onSignOut = async () => {
         await supabase.auth.signOut();
+    };
+
+    /**
+     * On success there is deliberately no confirmation to dismiss: `deleteAccount`
+     * signs out, which unmounts this screen and returns to login. Showing a
+     * success dialog on a screen that is being torn down would leave a modal
+     * stranded over the login page.
+     */
+    const onDeleteAccount = async () => {
+        setDeletingAccount(true);
+        setDeleteAccountError(null);
+        try {
+            await deleteAccount();
+        } catch (error: any) {
+            setDeleteAccountError(error?.message || 'Could not delete the account. Please try again.');
+            setDeletingAccount(false);
+        }
     };
 
     const handleCreateGroup = () => {
@@ -180,10 +202,34 @@ export default function SettingsScreen() {
                 </YStack>
 
                 {/* Sign out */}
-                <YStack marginBottom="$8">
+                <YStack>
                     <Button variant="destructive" onPress={onSignOut} size="md" fullWidth>
                         <LogOut size={18} color="white" />
                         <AppText weight="medium" color={'white'}>Sign Out</AppText>
+                    </Button>
+                </YStack>
+
+                {/* Account deletion (D1 — required by Google Play). Kept visually
+                    quieter than Sign Out and placed last, so the destructive
+                    option is never the one reached by accident. */}
+                <YStack gap="$2" marginBottom="$8">
+                    <XStack alignItems="center" gap="$2">
+                        <Trash2 size={20} color={colors.error} />
+                        <Heading level={3}>Delete account</Heading>
+                    </XStack>
+                    <AppText variant="muted" size="sm">
+                        Permanently delete your account and all your data. This cannot be undone.
+                    </AppText>
+                    <Button
+                        variant="outline"
+                        onPress={() => {
+                            setDeleteAccountError(null);
+                            setDeleteAccountOpen(true);
+                        }}
+                        size="md"
+                        fullWidth
+                    >
+                        <AppText weight="medium" color={colors.error}>Delete my account</AppText>
                     </Button>
                 </YStack>
             </YStack>
@@ -203,6 +249,15 @@ export default function SettingsScreen() {
                 }}
                 onCancel={() => setDeleteDialogGroup(null)}
                 isLoading={deleteGroup.isPending}
+            />
+
+            <DeleteAccountDialog
+                visible={deleteAccountOpen}
+                email={user?.email}
+                isDeleting={deletingAccount}
+                error={deleteAccountError}
+                onConfirm={onDeleteAccount}
+                onCancel={() => setDeleteAccountOpen(false)}
             />
         </Screen>
     );

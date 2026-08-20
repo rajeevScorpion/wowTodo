@@ -44,7 +44,7 @@ See [DEFECT_REGISTER.md](../testing/DEFECT_REGISTER.md) for the full list.
 | F3 | P1 | `ai-proxy` has no rate limit or body-size cap — billing abuse risk |
 | F4 | P1 | No timeouts or cancellation anywhere — stalled AI call hangs the UI |
 | ~~F5~~ | ~~P1~~ | ✅ **FIXED** (migration 0013) — email harvesting closed |
-| — | P1 | No in-app account deletion path (Google Play requirement) |
+| ~~D1~~ | ~~P1~~ | ✅ **FIXED & DEPLOYED** (2026-08-20) — in-app deletion in Settings + web `/delete-account`; migration 0016 made the cascade possible |
 | F6–F8 | P2 | `search_path` hardening, migration standard, unbounded notifications |
 
 ## What has never been verified

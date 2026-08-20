@@ -54,7 +54,7 @@ Verification legend:
 
 | Feature | Status | Why it matters |
 |---|---|---|
-| Account deletion | ❌ MISSING | **Google Play requires** an in-app deletion path for apps with accounts. Only `signOut` exists |
+| Account deletion | ✅ SHIPPED | Settings → Delete account, typed `DELETE` confirmation → `delete-account` Edge Function. Deletes the `auth.users` row; cascade clears all nine tables. Web page at `/delete-account` for the Play Console URL |
 | Privacy policy | ❌ MISSING | Required to complete the Play Data Safety form; audio leaves the device to OpenAI |
 | Rate limiting on AI | ❌ MISSING | **F3** — billing abuse |
 | Request timeouts | ❌ MISSING | **F4** |

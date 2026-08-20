@@ -13,7 +13,7 @@ Triage and fix plan: prompt 180.
 | ~~F3~~ | ~~P1~~ | Backend | `ai-proxy` has no rate limit or body-size cap | ✅ **FIXED & DEPLOYED** — migration 0015 + per-user quotas + 64 KB/10 MB caps, 8 tests. Cloud: migration pushed and `ai-proxy` deployed 2026-08-18; schemas hash identical |
 | **F4** | P1 | Reliability | No timeouts or cancellation anywhere | 🟡 **PARTIAL** — all AI requests now time out (4 tests); no caller passes an `AbortSignal` yet, so cancellation exists but is not wired to any UI affordance |
 | ~~F5~~ | ~~P1~~ | Privacy | `search_users` discloses every user's email | ✅ **FIXED** — migration 0013 |
-| **D1** | P1 | Play policy | No in-app account deletion path | OPEN |
+| ~~D1~~ | ~~P1~~ | Play policy | No in-app account deletion path | ✅ **FIXED & DEPLOYED** — `delete-account` Edge Function + Settings UI + migration 0016 + web `/delete-account`. 7 jest tests; `verify:account-deletion` 31/31. Cloud: migration pushed and function deployed 2026-08-20; schemas hash identical |
 | **D2** | P1 | Play policy | No privacy policy — blocks the Data Safety form | OPEN |
 | ~~D3~~ | ~~P1~~ | Build | `expo-asset` not a direct dependency (`expo-doctor` 17/18) | ✅ **FIXED** — `expo-doctor` now **18/18** |
 | **D4** | P1 | Release | Release build is debug-signed (Expo template default) | OPEN |

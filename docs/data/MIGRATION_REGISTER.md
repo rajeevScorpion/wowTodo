@@ -21,7 +21,12 @@ matching `ai-proxy` deploy, which is the required order: the function calls
 function first would have taken AI generation down. `db:diff:cloud` hashes identical
 (`5736de1d4d29aa9a`, 40698 bytes both sides).
 
-The next new migration must be **`0016`**.
+**0016 is applied locally AND to cloud** (cloud: 2026-08-20). Pushed *before* the
+`delete-account` function deploy, the required order: without the grants the function's
+admin delete is denied and every deletion fails with a 500. `db:diff:cloud` hashes
+identical (`855c35d11629e9ca`, 41588 bytes both sides).
+
+The next new migration must be **`0017`**.
 
 ## Register
 
@@ -45,6 +50,7 @@ against the local mirror and verified to restore prior behaviour.
 | **0013** | `0013_restrict_shared_todo_updates_and_user_search.sql` | Fix F1 (recipient could seize a todo) and F5 (email harvesting) | 0006, 0008 | `0013_…rollback.sql` | ✅ | ✅ **tested** |
 | **0014** | `0014_unblock_deleting_tasks_with_branches.sql` | Fix DF-1 — `tasks.parent_todo_id` RESTRICT → SET NULL, so a branched todo no longer makes its task undeletable | branches | `0014_…rollback.sql` | ✅ | ✅ **tested** |
 | **0015** | `0015_ai_proxy_rate_limit.sql` | Fix F3 — per-user quota counters + `consume_ai_quota` RPC so `ai-proxy` has a spend bound | 0001 | `0015_…rollback.sql` | ✅ | ⬜ |
+| **0016** | `0016_grant_auth_admin_cascade_delete.sql` | Fix D1 — grant `supabase_auth_admin` SELECT/DELETE in `public` so the `on delete cascade` from `auth.users` can complete; without it account deletion fails with `Database error deleting user` | 0001–0015 | `0016_…rollback.sql` | ✅ | ⬜ |
 
 ## Open items
 

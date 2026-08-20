@@ -4,6 +4,7 @@ import { Home } from "@/pages/Home"
 import { Pricing } from "@/pages/Pricing"
 import { Privacy } from "@/pages/Privacy"
 import { Terms } from "@/pages/Terms"
+import { DeleteAccount } from "@/pages/DeleteAccount"
 
 export default function App() {
   return (
@@ -15,6 +16,9 @@ export default function App() {
             <Route path="/pricing" element={<Pricing />} />
             <Route path="/privacy" element={<Privacy />} />
             <Route path="/terms" element={<Terms />} />
+            {/* Submitted to the Play Console as the Data deletion URL. Changing
+                this path breaks that listing — update the Console alongside it. */}
+            <Route path="/delete-account" element={<DeleteAccount />} />
           </Routes>
         </BrowserRouter>
       </div>

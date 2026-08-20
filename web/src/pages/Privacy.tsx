@@ -32,7 +32,7 @@ export function Privacy() {
 
               <h2 className="text-2xl font-medium text-foreground mt-8 mb-4">4. Your Choices</h2>
               <p>
-                You may update, correct, or delete your account information at any time by logging into your account settings. You can also contact us to request access to or deletion of your personal data.
+                You may update or correct your information at any time from your account settings. You can also permanently delete your account and all of its data from <strong className="text-foreground">Settings → Delete account</strong> in the app — see <a href="/delete-account" className="text-foreground underline underline-offset-4">Delete your account</a> for exactly what is removed, what is retained, and how to request deletion by email if you no longer have the app installed.
               </p>
 
               <h2 className="text-2xl font-medium text-foreground mt-8 mb-4">5. Contact Us</h2>

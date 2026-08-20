@@ -16,6 +16,7 @@
     "test": "jest",
     "test:watch": "jest --watch",
     "verify:rls": "node scripts/verify-rls.mjs",
+    "verify:account-deletion": "node scripts/verify-account-deletion.mjs",
     "db:push": "supabase db push",
     "db:status": "supabase migration list --linked",
     "db:diff:cloud": "node scripts/db-diff-cloud.mjs"

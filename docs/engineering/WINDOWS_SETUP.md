@@ -169,6 +169,29 @@ it. That single distinction is what makes this fault look like an app bug for ho
 On a **physical device** use the machine's LAN IP instead; Google sign-in there goes through
 the cloud project, which already has its own redirect URIs configured.
 
+## A NEW Edge Function needs a stack restart, not just a file
+
+The functions directory is bind-mounted into `supabase_edge_runtime_*`, so **edits** to an
+existing function are picked up immediately. A **newly created** function is not: the
+runtime builds its function map when the container starts, so the new name 404s with
+`{"error":"Function not found"}` no matter how many times the file is saved.
+
+```bash
+supabase stop && supabase start     # the only thing that re-reads the function list
+```
+
+The startup log is the confirmation — it prints one line per function it will serve:
+
+```
+Serving functions on http://127.0.0.1:55321/functions/v1/<function-name>
+ - http://127.0.0.1:55321/functions/v1/ai-proxy
+ - http://127.0.0.1:55321/functions/v1/delete-account
+```
+
+When a function returns an unexpected status, `docker logs supabase_edge_runtime_wowtodo`
+carries the `console.error` output and the real upstream body — which is where the cause
+actually is. Read it before changing any code.
+
 ## Google sign-in on the local stack
 
 The local stack and the cloud project are **completely separate auth backends**. Enabling
