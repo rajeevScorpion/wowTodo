@@ -121,19 +121,50 @@ view tree. Metro looks healthy throughout and `10.0.2.2:8081/status` returns
 `packager-status:running`, which makes this very easy to misdiagnose.
 
 It is intermittent: a transfer occasionally survives, so the app can work once and then fail
-every time afterwards. **Restarting Metro, `expo start --clear`, `pm clear`, and rebooting
-the emulator all fail to fix it** — they are all treating the symptom.
+every time afterwards.
 
-The fix is to load the bundle over `adb reverse` instead of the NAT:
+**Why it happens.** React Native resolves the dev server in `PackagerConnectionSettings.kt`
+(`node_modules/react-native/ReactAndroid/.../packagerconnection/`): it reads the
+SharedPreferences key `debug_http_host` **first**, and only falls back to
+`AndroidInfoHelpers.getServerHost()` — `10.0.2.2` on an emulator — when that key is empty.
+
+### The fix
 
 ```bash
-adb shell am force-stop com.wowtodo.app
-adb shell am start -a android.intent.action.VIEW \
-  -d "wowtodo://expo-development-client/?url=http%3A%2F%2Flocalhost%3A8081"
+npm run emu:dev-host
 ```
 
-`adb reverse` is a raw TCP relay and does not touch the payload, so the chunked stream
-arrives intact. Confirm with zero matches for `ProtocolException` in `adb logcat`.
+It sets `debug_http_host = localhost:8081` in the app's preferences (via `run-as`, which
+works because the dev build is debuggable) and runs `adb reverse tcp:8081`. `adb reverse` is
+a raw TCP relay that never touches the payload, so the chunked stream arrives intact.
+
+Re-run it after `adb kill-server`, an emulator reboot, or reinstalling the app — neither
+`adb reverse` nor app preferences survive any of those.
+
+Verify:
+
+```bash
+adb logcat -d | grep -E "Loading from|ProtocolException"
+```
+
+Expect `Loading from localhost:8081` and **no** `ProtocolException`.
+
+### Do not bother with these
+
+All were tried and none fix this fault: restarting Metro, `expo start --clear`,
+`expo start --localhost`, the `expo-development-client` deep link (works once, does not
+survive a relaunch), `adb shell pm clear`, rebooting the emulator, and `expo run:android`
+(which re-bakes `10.0.2.2`).
+
+### Diagnosing it in one step
+
+```bash
+adb logcat -d | grep -c ReactNativeJS    # 0 means JS never ran at all
+```
+
+**0 `ReactNativeJS` lines + a `ProtocolException` = transport, not app code.** Metro printing
+`Android Bundled` proves only that Metro *built* the bundle — never that the device received
+it. That single distinction is what makes this fault look like an app bug for hours.
 
 On a **physical device** use the machine's LAN IP instead; Google sign-in there goes through
 the cloud project, which already has its own redirect URIs configured.

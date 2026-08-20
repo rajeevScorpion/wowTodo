@@ -33,7 +33,17 @@ export default function Login() {
         try {
             const { data, error } = await supabase.auth.signInWithOAuth({
                 provider: 'google',
-                options: { redirectTo, skipBrowserRedirect: true },
+                options: {
+                    redirectTo,
+                    skipBrowserRedirect: true,
+                    // Without prompt=select_account Google silently reuses whichever
+                    // account is already signed in to the browser, so the chooser
+                    // never appears and there is no way to sign in as anyone else —
+                    // or to tell which account you just used. On a shared or
+                    // multi-account device that is the difference between reaching
+                    // your own data and someone else's.
+                    queryParams: { prompt: 'select_account' },
+                },
             });
             if (error) throw error;
             if (!data?.url) throw new Error('Google sign-in is unavailable right now.');
