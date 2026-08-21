@@ -10,6 +10,22 @@ jest.mock('../../../lib/supabase', () => ({
     },
 }));
 
+// `generateTask` now tries the agentic planner first. This suite is about the
+// OpenAI -> Gemini fallback *behind* it, so the agent is pinned to the state it
+// is actually in for a user who has not been rolled out: `AGENT_ROLLOUT=off`,
+// which the function answers with a 503. Without this the agent tier consumes
+// the `global.fetch` mock the tests below set up, and the call counts they
+// assert are off by one.
+jest.mock('expo/fetch', () => ({
+    fetch: async () => ({
+        ok: false,
+        status: 503,
+        headers: { get: () => null },
+        body: null,
+        text: async () => JSON.stringify({ error: 'disabled', code: 'agent_disabled' }),
+    }),
+}));
+
 /** A response as the ai-proxy Edge Function sends it when a quota is exhausted. */
 function rateLimited(retryAfter: string | null) {
     const headers = new Map<string, string>();

@@ -24,8 +24,16 @@ Never bundled into the app. Gitignored.
 
 | Name | Purpose |
 |---|---|
-| `OPENAI_API_KEY` | `gpt-4o-mini` chat + `whisper-1` transcription |
+| `OPENAI_API_KEY` | `gpt-4o-mini` chat + `whisper-1` transcription. Shared by `ai-proxy` and `ai-agent` |
 | `GEMINI_API_KEY` | `gemini-2.0-flash` fallback |
+| `AGENT_ROLLOUT` | `off` (default) · `owner` · `all` — who reaches the agentic planner |
+| `AGENT_OWNER_IDS` | comma-separated user uuids, used when `AGENT_ROLLOUT=owner` |
+| `AGENT_SPECIALIST_MODEL` | specialist model; must be listed in `AGENT_MODELS` in `_shared/openai.ts` |
+
+`AGENT_ROLLOUT` is **not** a secret, but it lives here because it is the one control that
+turns the agentic planner on and off without an app-store release. It defaults to `off`
+when absent, so forgetting to set it in cloud is the safe outcome rather than a surprise
+rollout. See [AGENTIC_INTENT_SYSTEM.md](../architecture/AGENTIC_INTENT_SYSTEM.md).
 
 ## Cloud Edge Function secrets — **not yet set**
 

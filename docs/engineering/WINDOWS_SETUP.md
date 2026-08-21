@@ -192,6 +192,25 @@ When a function returns an unexpected status, `docker logs supabase_edge_runtime
 carries the `console.error` output and the real upstream body — which is where the cause
 actually is. Read it before changing any code.
 
+### A MULTI-MODULE function needs a container restart for every edit
+
+The "edits are picked up immediately" rule above holds for a **single-file** function. It
+does **not** hold for one that imports other modules — `ai-agent` pulls in `../_shared/`,
+`./agents/`, `./validate.ts`. The runtime compiles the module graph once and keeps serving
+it, so an edit to any file changes nothing at all:
+
+```bash
+docker restart supabase_edge_runtime_wowtodo && sleep 6
+```
+
+`supabase stop && supabase start` also works but takes far longer.
+
+This is worth knowing before it costs you an afternoon. The symptom is that the function
+keeps behaving exactly as it did, so the natural conclusion is that the change was wrong —
+and you go and "fix" a prompt that was already correct. The tell is a **new field you just
+added being absent from the response**: a stale bundle cannot emit a key it has never
+compiled. Add one deliberately if you are unsure whether your code is live.
+
 ## Google sign-in on the local stack
 
 The local stack and the cloud project are **completely separate auth backends**. Enabling

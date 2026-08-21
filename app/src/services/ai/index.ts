@@ -2,7 +2,12 @@ import { AIGeneratedTask, AppLanguage, BranchContext } from '../../types';
 import { generateTaskWithOpenAI, generateBranchWithOpenAI } from './openai';
 import { generateTaskWithGemini, generateBranchWithGemini } from './gemini';
 import { transcribeAudio } from './whisper';
-import { AiRateLimitError } from './proxy';
+import { AiCancelledError, AiRateLimitError } from './proxy';
+import {
+    AgentClarificationNeeded,
+    generateTaskWithAgent,
+    type AgentStage,
+} from './agent';
 
 /**
  * AI orchestration.
@@ -35,15 +40,43 @@ function providersUnavailable(openAiError: unknown, geminiError: unknown): Error
     );
 }
 
+export interface GenerateTaskOptions {
+    /** Progress from the agentic path. Never called on the legacy path. */
+    onStage?: (stage: AgentStage) => void;
+    signal?: AbortSignal;
+}
+
 /**
  * Generate a task with todos from user input.
- * Tries OpenAI first, falls back to Gemini on failure.
+ *
+ * Three tiers: the agentic planner (`ai-agent`), then OpenAI with the legacy
+ * single prompt, then Gemini. The signature and return type are unchanged, so
+ * `review.tsx` and every other caller are unaffected by which one served the
+ * request.
+ *
+ * The agentic path is off by default and enabled server-side, so for most users
+ * this currently costs one refused request before the legacy path runs — a few
+ * hundred milliseconds, in exchange for being able to enable, canary and disable
+ * the new pipeline without an app-store release.
  */
 export async function generateTask(
     userInput: string,
     existingGroups?: string[],
     language?: AppLanguage,
+    options: GenerateTaskOptions = {},
 ): Promise<AIGeneratedTask> {
+    try {
+        return await generateTaskWithAgent(userInput, existingGroups, language, options);
+    } catch (error) {
+        // A clarifying question is the agentic path WORKING. Falling back would
+        // hand the same utterance to the prompt that fabricates, and produce
+        // precisely the invented task the question existed to prevent.
+        if (error instanceof AgentClarificationNeeded) throw error;
+        if (error instanceof AiCancelledError) throw error;
+        rethrowIfRateLimited(error);
+        console.warn('Agentic planner unavailable, using the legacy path:', error);
+    }
+
     let openAiError: unknown;
     try {
         return await generateTaskWithOpenAI(userInput, existingGroups, language);
@@ -96,3 +129,7 @@ export async function transcribeVoice(
 ): Promise<string> {
     return transcribeAudio(audioUri, language);
 }
+
+// Re-exported so screens import the clarification type from the same place they
+// import generateTask, rather than reaching into the agent module directly.
+export { AgentClarificationNeeded, AgentUnavailableError, type AgentStage } from './agent';

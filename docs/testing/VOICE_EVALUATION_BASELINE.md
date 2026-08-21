@@ -54,7 +54,52 @@ Three changes came with it, all of which alter what a run *means*:
 > **two** model calls at ~4s total, and a single call already costing 4.0s here puts that
 > budget under real pressure. Re-measure before treating the budget as met.
 
-The two failure modes below are unchanged and now have automatic scores attached.
+### Agentic path — 25 cases, 2026-08-21
+
+`npm run eval:voice -- --target=agent`. Same dataset, same pinned date, same scorer.
+Architecture: [AGENTIC_INTENT_SYSTEM.md](../architecture/AGENTIC_INTENT_SYSTEM.md).
+
+| Dimension | Legacy | Agentic |
+|---|---|---|
+| **Asks when it should, plans when it should** | **0/3** asks; never over-asks | **25/25** |
+| Language / script compliance | 3/4 (V16 fails) | **4/4** |
+| Date accuracy | 7/7 | 7/7 |
+| Todo count in range | 22/22 | 21/22 |
+| Routed to the right agent | n/a | **6/6** |
+| Structured validity | 25/25 | 22/22 (3 clarified) |
+| Pipeline errors | 0/25 | 0/25 |
+| **Cases fully passing** | **21/25** | **24/25** |
+| Latency p50 | 4613ms | **4072ms** |
+
+The clarification row is not directly comparable: the legacy run predates the symmetric
+scoring, so its stored scores only cover the three "should ask" cases. Legacy never asks
+about anything, so it scores 0/3 on asking and passes the other 22 by construction — an
+effective 22/25 against the agentic path's 25/25.
+
+**p50 fell despite two model calls per request.** Each specialist prompt is much smaller
+than the 4,000-token generalist it replaced, so input tokens per call dropped more than
+the extra call added.
+
+Three regressions were found and fixed during the run, all by this harness:
+
+1. A 10-item invented grocery list for "buy grocery for the week" — the shopping
+   specialist now refuses to invent items for a generic request.
+2. A **07:00 alarm** on "gym in the morning" — times now require the router *and* a regex
+   over the utterance to agree.
+3. A recipe with 13 shopping steps and no cooking method at all.
+
+One expectation was corrected rather than the code: **V21's count was widened from
+`[4,12]` to `[3,12]`**. It predated the schedule specialist, whose rule is "one step per
+commitment the user named"; three commitments should give three steps, so the test
+contradicted the design it was checking. Recorded here because moving a goalpost silently
+is how an evaluation suite stops meaning anything.
+
+The remaining failure is **V24** (Hindi paneer recipe), which compressed a method to 3
+steps. `gpt-4o` fixes it and breaks V21 in exchange at ~15x the cost, so it was not
+adopted — see the model bake-off note in the architecture doc.
+
+The two failure modes below are unchanged **on the legacy path** and now have automatic
+scores attached.
 
 ## Headline
 

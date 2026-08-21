@@ -174,6 +174,13 @@ export type AIGeneratedTask = {
     event_time: string | null; // ISO datetime
     todos: AIGeneratedTodo[];
     groups: AIGroupSuggestions;
+
+    // Provenance from the agentic path (prompt 210). Absent on the legacy
+    // single-prompt path, which is exactly how the two are told apart — see
+    // migration 0017, which stores these on `tasks`.
+    agent?: string | null;
+    confidence?: number | null;
+    prompt_version?: string | null;
 };
 
 // Branch AI context type

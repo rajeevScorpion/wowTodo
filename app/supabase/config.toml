@@ -361,6 +361,9 @@ verify_jwt = true
 [functions.delete-account]
 verify_jwt = true
 
+[functions.ai-agent]
+verify_jwt = true
+
 [analytics]
 enabled = true
 port = 55327

@@ -29,6 +29,7 @@ const ONLY = arg('only')?.split(',').map((s) => s.trim().toUpperCase());
 
 const APP = process.cwd();
 const PROXY = 'http://127.0.0.1:55321/functions/v1/ai-proxy';
+const AGENT = 'http://127.0.0.1:55321/functions/v1/ai-agent';
 const AUTHURL = 'http://127.0.0.1:55321/auth/v1';
 
 // Same cache as scripts/verify-*.mjs — `supabase status -o env` is authoritative
@@ -76,7 +77,13 @@ const DATASET = [
   // only when --target=agent; under the legacy path it reports n/a.
   { id:'V19', lang:'en', cat:'Recipe — needs quantities',  u:'I want to make chicken biryani for six people this Sunday',                    expect:{count:[6,20], agent:'recipe', wantsQuantities:true, expectDate:'2026-08-23'} },
   { id:'V20', lang:'en', cat:'Trip — multi-leg',           u:'Planning a five day trip to Goa next month, need flights, a hotel, and a sightseeing plan', expect:{count:[6,18], agent:'trip'} },
-  { id:'V21', lang:'en', cat:'Schedule — time-blocked day',u:'Plan my day tomorrow: gym in the morning, three client calls, and finish the quarterly report', expect:{count:[4,12], agent:'schedule', wantsDate:true, expectDate:'2026-08-18'} },
+  // count widened from [4,12] to [3,12] on 2026-08-21. The original expectation
+  // predated the schedule specialist and assumed decomposition; that agent's rule
+  // is "one step per commitment the user named, do not invent commitments to fill
+  // the day". Three commitments therefore SHOULD produce three steps, and the test
+  // as written contradicted the design it was meant to check. Whether "three client
+  // calls" is one step or three is genuinely arguable — the range now admits both.
+  { id:'V21', lang:'en', cat:'Schedule — time-blocked day',u:'Plan my day tomorrow: gym in the morning, three client calls, and finish the quarterly report', expect:{count:[3,12], agent:'schedule', wantsDate:true, expectDate:'2026-08-18'} },
   { id:'V22', lang:'en', cat:'Shopping — flat list',       u:'Grocery list for the week: milk, bread, eggs, vegetables and some fruit',      expect:{count:[4,12], agent:'shopping', noTime:true} },
   { id:'V23', lang:'en', cat:'Project — milestones',       u:'I need to launch the new company website by the end of September',            expect:{count:[5,15], agent:'project'} },
   { id:'V24', lang:'hi', cat:'Recipe in Hindi',            u:'रविवार को घर पर पनीर बटर मसाला बनाना है, चार लोगों के लिए',                        expect:{count:[5,20], agent:'recipe', wantsDevanagari:true} },
@@ -171,6 +178,8 @@ async function paced(fn) {
 // ── Prompt construction — mirrors src/services/ai/dateContext.ts ────────────
 // Pinned to a fixed date so results stay comparable against the baseline document.
 const BASELINE_NOW = new Date('2026-08-17T10:00:00');
+/** The same pinned day, in the form ai-agent expects from a device. */
+const EVAL_TODAY = '2026-08-17';
 const WEEKDAYS = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
 const isoLocal = (d) =>
     d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
@@ -211,10 +220,64 @@ async function runLegacy(t, tok) {
   return JSON.parse(body.choices?.[0]?.message?.content ?? 'null');
 }
 
-// --target=agent is wired in Phase 1, when ai-agent exists and its event protocol
-// is settled. Deliberately absent rather than stubbed: a runner that has never
-// executed would report scores nobody can trust.
-const RUNNERS = { legacy: runLegacy };
+/**
+ * The agentic path: router -> specialist, over server-sent events.
+ *
+ * Collapses the stream into the same shape the legacy runner returns, so both
+ * targets are scored by identical code and a comparison means something. The
+ * extra fields it carries — `agent`, `clarification` — are the two things the
+ * legacy path structurally cannot produce.
+ */
+async function runAgent(t, tok) {
+  const r = await paced(() => fetch(AGENT, {
+    method: 'POST',
+    headers: { apikey: ANON, Authorization: `Bearer ${tok}`, 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      input: t.u,
+      language: t.lang,
+      today: EVAL_TODAY,
+      groups: ['Cooking', 'Work', 'Home'],
+    }),
+  }));
+
+  if (!r.ok || !r.body) {
+    throw new Error(`HTTP ${r.status}: ${(await r.text()).slice(0, 200)}`);
+  }
+
+  const reader = r.body.getReader();
+  const dec = new TextDecoder();
+  let buf = '';
+  let routed = null, task = null, clarification = null, failure = null;
+
+  while (true) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    buf += dec.decode(value, { stream: true });
+    const lines = buf.split('\n');
+    buf = lines.pop() ?? '';
+    for (const line of lines) {
+      const s = line.trim();
+      if (!s.startsWith('data:')) continue;
+      const e = JSON.parse(s.slice(5).trim());
+      if (e.type === 'routed') routed = e;
+      else if (e.type === 'clarify') clarification = e.question;
+      else if (e.type === 'done') task = e.task;
+      else if (e.type === 'error') failure = `${e.code}: ${e.message}`;
+    }
+  }
+
+  if (failure) throw new Error(failure);
+  if (!task && !clarification) throw new Error('stream ended with neither a task nor a question');
+
+  return {
+    ...(task ?? { todos: [] }),
+    agent: routed?.agent ?? null,
+    allow_times: routed?.allow_times ?? null,
+    clarification,
+  };
+}
+
+const RUNNERS = { legacy: runLegacy, agent: runAgent };
 if (!RUNNERS[TARGET]) {
   throw new Error(`unknown --target=${TARGET} (available: ${Object.keys(RUNNERS).join(', ')})`);
 }
@@ -236,8 +299,22 @@ function scoreCase(t, out) {
   ].filter(Boolean);
 
   const s = {};
+  const clarified = !!(typeof out?.clarification === 'string' && out.clarification.trim());
 
-  // Structural validity — the one dimension every case is scored on.
+  // Clarification is scored on EVERY case, in both directions. Only measuring
+  // "did it ask when it should?" rewards a pipeline that asks about everything —
+  // and over-asking is the worse failure, because it hands the work back to
+  // someone who was trying to offload it.
+  s.clarify = e.shouldClarify ? clarified : !clarified;
+
+  // A clarified response legitimately has no title, no todos and no group.
+  // Scoring those as failures would mark the correct behaviour wrong.
+  if (clarified) {
+    s.routing = null;
+    return s;
+  }
+
+  // Structural validity — the one dimension every non-clarified case is scored on.
   s.valid = !!(out && typeof out.title === 'string' && out.title.trim() && todos.length >= 0
     && (out.groups?.selected || out.group));
 
@@ -248,12 +325,6 @@ function scoreCase(t, out) {
   s.eventTime = e.wantsEventTime ? !!out?.event_time : null;
   s.noTime = e.noTime
     ? !out?.event_time && todos.every((x) => typeof x !== 'object' || !x?.due_time)
-    : null;
-
-  // Clarification vs fabrication. The legacy schema has no field for uncertainty,
-  // so this is structurally 0/N there — which is the finding, not a harness bug.
-  s.clarify = e.shouldClarify
-    ? !!(typeof out?.clarification === 'string' && out.clarification.trim()) || todos.length === 0
     : null;
 
   s.ordered = e.ordered
@@ -276,8 +347,13 @@ function scoreCase(t, out) {
     : null;
 
   // Recipe depth: an ingredient step is useless without an amount.
+  //
+  // Checks title AND note. The agentic recipe prompt deliberately puts amounts in
+  // `note` — "Buy the vegetables" / "Onions 3 large; tomatoes 2 medium" — so a
+  // title-only check scored a correct response as having no quantities at all.
+  // Measuring the wrong field looks exactly like a regression.
   s.quantities = e.wantsQuantities
-    ? titles.filter((x) => /\d/.test(String(x))).length >= 2
+    ? todos.filter((x) => /\d/.test(`${x?.title ?? x} ${typeof x === 'object' ? (x?.note ?? '') : ''}`)).length >= 2
     : null;
 
   // Routing is only observable on the agentic path.
@@ -293,7 +369,7 @@ const DIMENSIONS = {
   wantsDate:  'date present',
   eventTime:  'event_time present',
   noTime:     'no fabricated time',
-  clarify:    'clarifies instead of fabricating',
+  clarify:    'asks when it should, plans when it should',
   ordered:    'ordering preserved',
   entities:   'named entities kept',
   contains:   'required content present',
@@ -337,7 +413,11 @@ for (const t of CASES) {
 // ── Scorecard ───────────────────────────────────────────────────────────────
 console.log('\n── Scorecard ──');
 for (const [key, label] of Object.entries(DIMENSIONS)) {
-  const scored = results.filter((r) => r.score && r.score[key] !== null);
+  // `!= null` on purpose, catching undefined as well as null: a clarified case
+  // returns early and never assigns the planning dimensions, and `!== null`
+  // counted those absent keys as scored-and-failed — which quietly reported
+  // "ordering preserved 1/4" for a run in which ordering was never in question.
+  const scored = results.filter((r) => r.score && r.score[key] != null);
   if (!scored.length) continue;
   const ok = scored.filter((r) => r.score[key] === true).length;
   const bar = ok === scored.length ? '✅' : ok === 0 ? '❌' : '⚠️ ';

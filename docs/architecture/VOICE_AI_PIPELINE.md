@@ -3,6 +3,13 @@
 **As implemented on 2026-08-17.** Planned agentic redesign is prompt 210 and must not
 overwrite this document.
 
+> **Since 2026-08-21 this is the FALLBACK path, not the only one.** Task generation now
+> tries the router + specialist pipeline first — see
+> [AGENTIC_INTENT_SYSTEM.md](AGENTIC_INTENT_SYSTEM.md). Everything below still describes
+> what happens when that path is disabled or fails, which is every request until the
+> rollout flag is turned on, and every failed request afterwards. Transcription (steps
+> 1-4) is **unchanged and shared** by both paths.
+
 ## Flow
 
 ```

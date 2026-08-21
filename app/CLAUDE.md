@@ -31,7 +31,7 @@ npm run gen:types       # regenerate src/types/database.ts from the local schema
 ```
 
 ```bash
-npm test                # jest — 45 tests
+npm test                # jest — 56 tests
 npm run test:watch
 npm run verify:rls               # authorisation suite, against the local stack — 26 checks
 npm run verify:account-deletion  # proves account deletion actually erases the data (D1) — 43 checks
@@ -127,7 +127,21 @@ $env:PATH = "$env:JAVA_HOME\bin;$env:ANDROID_HOME\platform-tools;$env:ANDROID_HO
   - `gemini.ts` — Gemini API fallback (gemini-2.0-flash)
   - `whisper.ts` — OpenAI Whisper (`whisper-1`) audio transcription
   - `proxy.ts` — routes every AI call through the `ai-proxy` Edge Function
-  - `index.ts` — Orchestrator: tries OpenAI first, falls back to Gemini **on failure**
+  - `agent.ts` — client half of `ai-agent`: SSE via `expo/fetch`, progressive status
+  - `index.ts` — Orchestrator: **agentic planner → OpenAI → Gemini**, each on failure
+
+**Task generation is agentic since 2026-08-21**, behind a server-side flag that is off by
+default. `supabase/functions/ai-agent/` routes an utterance to one of six specialists and
+streams its progress. Architecture and the measured comparison:
+[AGENTIC_INTENT_SYSTEM.md](../docs/architecture/AGENTIC_INTENT_SYSTEM.md).
+
+Two rules that are easy to break by accident:
+- **A clarifying question must never fall back to the legacy path.** Falling back hands the
+  same utterance to the prompt that fabricates and produces the exact invented task the
+  question refused to produce. `AgentClarificationNeeded` is re-thrown, not caught.
+- **A multi-module Edge Function needs `docker restart supabase_edge_runtime_wowtodo`**
+  after every edit. Single-file functions hot-reload; `ai-agent` does not. See
+  [WINDOWS_SETUP.md](../docs/engineering/WINDOWS_SETUP.md).
 
 **No API keys exist on the client.** All AI calls go through
 `supabase/functions/ai-proxy/`, which verifies the user JWT and allow-lists models
