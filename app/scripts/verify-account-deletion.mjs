@@ -4,7 +4,7 @@
  *
  * Google Play requires that deleting an account actually deletes the user's
  * data. The app makes that claim with a single admin delete of the `auth.users`
- * row and relies on `on delete cascade` to reach nine tables. That reliance is
+ * row and relies on `on delete cascade` to reach ten tables. That reliance is
  * invisible to `tsc` and to jest: add a table without the cascade, or with
  * `on delete set null`, and the code still compiles, the unit tests still pass,
  * and the app quietly starts lying to its users and to Play.
@@ -133,6 +133,10 @@ psqlScript(`
     ('${uidB}','33333333-0000-0000-0000-000000000002',1,now()+interval '1 day','notification');
   insert into ai_usage_quota (user_id, kind, window_seconds, request_count) values
     ('${uidV}','chat',60,3),('${uidB}','chat',60,3);
+  -- 0017. Metrics rows, correlated to each user's own task.
+  insert into ai_runs (user_id, kind, agent, outcome, task_id) values
+    ('${uidV}','task','recipe','ok','22222222-0000-0000-0000-000000000001'),
+    ('${uidB}','task','trip','ok','22222222-0000-0000-0000-000000000002');
   -- Shares in BOTH directions: the victim as owner, and as recipient.
   insert into shares (task_id, owner_id, recipient_id, status) values
     ('22222222-0000-0000-0000-000000000001','${uidV}','${uidB}','accepted'),
@@ -153,6 +157,7 @@ const OWNED = [
     ['reminder_settings', 'user_id'],
     ['scheduled_reminders', 'user_id'],
     ['ai_usage_quota', 'user_id'],
+    ['ai_runs', 'user_id'],
     ['shares', 'owner_id'],
     ['shares', 'recipient_id'],
     ['in_app_notifications', 'user_id'],
@@ -161,9 +166,63 @@ const OWNED = [
 const countFor = (table, column, uid) =>
     Number(psql(`select count(*) from ${table} where ${column}='${uid}'`));
 
+const totalRows = (table) => Number(psql(`select count(*) from ${table}`));
+
+/**
+ * Which rows in each table are the victim's, and must therefore disappear.
+ *
+ * This exists because counting `where user_id = '<victim>'` cannot tell deletion
+ * apart from `ON DELETE SET NULL`: under SET NULL the row survives with the column
+ * nulled, the count is still 0, and the assertion passes while the data is still
+ * sitting in the database. Verified by mutation — flipping ai_runs to SET NULL did
+ * not fail the suite until this was added.
+ *
+ * A NOT NULL column happens to be immune (the delete errors out instead), but that
+ * is a property of today's schema, not a guarantee about the next table someone
+ * adds. Comparing total row counts before and after catches it either way.
+ *
+ * `shares` needs an OR: the victim owns one row and receives another, so per-column
+ * arithmetic would double-count the pair.
+ */
+const DELETED_BY = {
+    user_profiles:        `user_id='${uidV}'`,
+    task_groups:          `user_id='${uidV}'`,
+    tasks:                `user_id='${uidV}'`,
+    todos:                `user_id='${uidV}'`,
+    reminder_settings:    `user_id='${uidV}'`,
+    scheduled_reminders:  `user_id='${uidV}'`,
+    ai_usage_quota:       `user_id='${uidV}'`,
+    ai_runs:              `user_id='${uidV}'`,
+    shares:               `owner_id='${uidV}' or recipient_id='${uidV}'`,
+
+    // in_app_notifications reaches the victim by FOUR routes, not one:
+    //   user_id  CASCADE   their own inbox
+    //   share_id CASCADE   a row in SOMEONE ELSE'S inbox, about the victim's share
+    //   task_id  CASCADE   likewise, about the victim's task
+    //   actor_id SET NULL  the documented exception — row survives, link severed
+    //
+    // The two middle routes are second-order and were not in the documented model;
+    // this check is what surfaced them (the table lost 3 rows where the naive
+    // `user_id` predicate predicted 2). The behaviour is right — a "Vic shared
+    // 'Dinner Party' with you" notification whose share and task are both gone
+    // deep-links to nothing — but the arithmetic has to say so out loud.
+    in_app_notifications:
+        `user_id='${uidV}'` +
+        ` or share_id in (select id from shares where owner_id='${uidV}' or recipient_id='${uidV}')` +
+        ` or task_id in (select id from tasks where user_id='${uidV}')`,
+};
+
+// Snapshot before anything is deleted, so the arithmetic below has a reference.
+const before = Object.fromEntries(
+    Object.entries(DELETED_BY).map(([t, pred]) => [
+        t,
+        { total: totalRows(t), victim: Number(psql(`select count(*) from ${t} where ${pred}`)) },
+    ]),
+);
+
 console.log('\n── Fixtures ──');
 const seeded = OWNED.every(([t, c]) => countFor(t, c, uidV) > 0);
-check('victim has data in all ten owner columns', seeded);
+check('victim has data in all eleven owner columns', seeded);
 
 console.log('\n── Refusals (nothing may be deleted) ──');
 
@@ -198,6 +257,19 @@ console.log('\n── Cascade: every table emptied ──');
 for (const [table, column] of OWNED) {
     const n = countFor(table, column, uidV);
     check(`${table}.${column}`, n === 0, `${n} row(s) left`);
+}
+
+console.log('\n── Cascade: rows are DELETED, not orphaned ──');
+// The check above is satisfied by a nulled column as much as by a deleted row.
+// This one is not: if the row survived, the total did not drop.
+for (const [table, { total, victim }] of Object.entries(before)) {
+    const now = totalRows(table);
+    const expected = total - victim;
+    check(
+        `${table} lost exactly its ${victim} victim row(s)`,
+        now === expected,
+        `${total} → ${now}, expected ${expected}`,
+    );
 }
 
 console.log('\n── Bystander is untouched ──');

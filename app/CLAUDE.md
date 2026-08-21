@@ -33,15 +33,25 @@ npm run gen:types       # regenerate src/types/database.ts from the local schema
 ```bash
 npm test                # jest — 45 tests
 npm run test:watch
-npm run verify:rls               # authorisation suite, against the local stack
-npm run verify:account-deletion  # proves account deletion actually erases the data (D1)
+npm run verify:rls               # authorisation suite, against the local stack — 26 checks
+npm run verify:account-deletion  # proves account deletion actually erases the data (D1) — 43 checks
+npm run eval:voice               # AI quality against docs/testing/VOICE_EVALUATION_BASELINE.md
 ```
 
 `verify:account-deletion` is not optional garnish: the app promises Google Play that
 deleting an account deletes the data, and that promise rests entirely on `on delete
 cascade`. Add a table with a `user_id` that does not cascade — or without the
 `supabase_auth_admin` grant from migration 0016 — and nothing else in the repo will notice.
-Run it after any migration that adds a table holding user data.
+Run it after any migration that adds a table holding user data, and add the table to the
+script's `OWNED` and `DELETED_BY` lists in the same change.
+
+It asserts **deletion, not absence**: counting rows `where user_id = '<victim>'` passes just
+as happily when the row survived with `user_id` set to NULL, so total row counts are
+compared before and after as well. Both halves are mutation-tested.
+
+`eval:voice` costs real OpenAI credits and is paced to stay under the 0015 rate limit, so a
+full run takes ~3 minutes. It is the gate for anything that touches a prompt, a model or
+the AI pipeline — a green typecheck says nothing at all about answer quality.
 
 `npm run typecheck` and `npm test` are the current correctness gates and both pass.
 No linter is configured yet.

@@ -8,6 +8,54 @@ the same path the app uses. No real user data was sent.
 This is the **regression baseline**. Re-run it after any prompt, model or pipeline change
 and compare. Do not tune the prompt against this set alone — keep a holdout.
 
+```bash
+npm run eval:voice                    # all cases
+npm run eval:voice -- --only=V11,V12  # one failure mode
+```
+
+## Scoring is automated (2026-08-20)
+
+The table below was scored **by hand** in the original prompt-160 run. That was fine for a
+one-off audit and useless for the agentic work, which needs to prove each phase is an
+improvement rather than argue it. The harness now scores itself and prints a scorecard.
+
+Three changes came with it, all of which alter what a run *means*:
+
+1. **Pacing.** The set predates the rate limiter added in migration 0015. Run unpaced
+   today and the tail of the run is scored as failures that are really `429`s. Requests
+   are now spaced 4.2s apart, and a 429 or a transient upstream fault gets one retry —
+   which fired for real on V18 during the reference run (`received corrupt message of
+   type InvalidContentType` on a TLS connect to OpenAI). A transient blip is not a
+   finding; a reproducible one still fails, because the retry fails too.
+2. **The pacing delay is outside the timer.** Folding it in added ~4.2s to every reported
+   latency and would have quietly invalidated every comparison to the p50 below.
+3. **Seven new cases (V19–V25)** covering the specialist domains the agentic work
+   introduces. V01–V18 and the pinned date are **frozen** — editing one silently
+   invalidates every historical comparison.
+
+### Reference run — legacy single-prompt path, 25 cases, 2026-08-20
+
+| Dimension | Result |
+|---|---|
+| Structured validity | **25/25** |
+| Pipeline errors | **0/25** |
+| Todo count in range | 22/22 |
+| **Date accuracy** (named weekdays and relative dates) | **7/7** — the `dateContext.ts` fix holds, now measured every run |
+| **Clarifies instead of fabricating** | **0/3** ❌ — V11, V12, V25 |
+| Language / script compliance | 3/4 — V16 still fails |
+| Ordering · entities · dedup · corrections | 1/1 · 1/1 · 1/1 · 2/2 |
+| Cases fully passing | **21/25** |
+| Latency, V01–V18 only | min 2.5s · **p50 4.0s** · max 12.8s |
+| Latency, V19–V25 (new, longer outputs) | min 3.4s · p50 5.4s · max 6.9s |
+
+> **The p50 moved from 2.6s to 4.0s on the identical 18-case set**, with the prompt and
+> model unchanged. Not attributed — it could be OpenAI-side, the local Docker network, or
+> the day. Recorded rather than explained, because it matters: the agentic design budgets
+> **two** model calls at ~4s total, and a single call already costing 4.0s here puts that
+> budget under real pressure. Re-measure before treating the budget as met.
+
+The two failure modes below are unchanged and now have automatic scores attached.
+
 ## Headline
 
 | Metric | Result |
@@ -165,6 +213,36 @@ rate**. Before changing the pipeline, capture at minimum:
 
 ## Reproducing
 
-Harness: `scratchpad/eval160.mjs` (evaluation fixture, not product code). Requires the
-local stack, `supabase functions serve`, and a local user. Extracts the system prompt from
-source so it cannot drift from what ships.
+Harness: [`app/scripts/eval-voice-baseline.mjs`](../../app/scripts/eval-voice-baseline.mjs),
+run with `npm run eval:voice`. Requires the local stack (`supabase start`) and a configured
+`OPENAI_API_KEY` in `supabase/functions/.env`. It extracts the system prompt from source at
+run time so it cannot drift from what ships, provisions its own eval user, and pins the
+date to 2026-08-17 so results stay comparable.
+
+Full per-case output lands in `eval-legacy-results.json` (gitignored — synthetic
+utterances and model responses only; this document is the committed record).
+
+The exit code reflects **pipeline health only**, not model quality: a failing case is a
+finding to compare against this baseline, not a broken build. Only a genuine pipeline
+error fails the run.
+
+### Specialist-domain cases (V19–V25)
+
+Added for the agentic redesign. `agent` expectations are scored only under
+`--target=agent`, which arrives with the `ai-agent` function in phase 1.
+
+| ID | Lang | Probes | Expected agent |
+|---|---|---|---|
+| V19 | en | Recipe needing quantities — "chicken biryani for six this Sunday" | `recipe` |
+| V20 | en | Multi-leg trip — flights, hotel, sightseeing | `trip` |
+| V21 | en | Time-blocked day — gym, three calls, a report | `schedule` |
+| V22 | en | Flat shopping list, no times | `shopping` |
+| V23 | en | Milestone project with a deadline | `project` |
+| V24 | hi | Recipe in Devanagari — specialist **and** language together | `recipe` |
+| V25 | en | Ambiguous with a hint — "I should do something for mom" | should clarify |
+
+V19 is the clearest illustration of why one shared prompt is not enough: it produces a
+plausible biryani plan whose steps sometimes carry no quantities at all, which is the
+difference between a recipe and a list of gestures. The score is unstable across runs
+(it passed the reference run and failed a probe run an hour earlier) — exactly the kind
+of coin-flip a focused specialist prompt should turn into a floor.

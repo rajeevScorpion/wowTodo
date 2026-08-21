@@ -76,6 +76,13 @@ check('recipient CANNOT seize user_id', r.status === 403 || r.status === 400, `H
 r = await rest(`todos?id=eq.${todo}`, tokR, { method:'PATCH', body: JSON.stringify({ due_date:'2030-01-01' }) });
 check('recipient CANNOT change due_date', r.status === 403 || r.status === 400, `HTTP ${r.status}`);
 
+// 0017 added todos.note. The 0013 trigger compares the whole row via
+// `to_jsonb(new) - 'completed' - 'updated_at'` precisely so a column added later
+// is protected by default — this asserts that design held, rather than assuming it.
+// Every future column added to `todos` should get a line here.
+r = await rest(`todos?id=eq.${todo}`, tokR, { method:'PATCH', body: JSON.stringify({ note:'HIJACKED NOTE' }) });
+check('recipient CANNOT write note (column added after 0013)', r.status === 403 || r.status === 400, `HTTP ${r.status}`);
+
 check('todo still owned by owner, title intact',
   psql(`select user_id||'|'||title from todos where id='${todo}'`) === `${uidO}|V13 Original Title`);
 
@@ -83,6 +90,8 @@ r = await rest(`todos?id=eq.${todo}`, tokO, { method:'PATCH', body: JSON.stringi
 check('OWNER can still change title', r.status === 204, `HTTP ${r.status}`);
 r = await rest(`todos?id=eq.${todo}`, tokO, { method:'PATCH', body: JSON.stringify({ due_date:'2030-06-01' }) });
 check('OWNER can still change due_date', r.status === 204, `HTTP ${r.status}`);
+r = await rest(`todos?id=eq.${todo}`, tokO, { method:'PATCH', body: JSON.stringify({ note:'2 tbsp, finely diced' }) });
+check('OWNER can write note (0017)', r.status === 204, `HTTP ${r.status}`);
 
 check('owner still sees own todo under RLS',
   JSON.parse(await (await rest(`todos?id=eq.${todo}&select=id`, tokO)).text()).length === 1);
@@ -105,6 +114,48 @@ const byName = await rpc(tokR, 'Olivia');
 check('name search finds the user', byName.length === 1 && byName[0].user_id === uidO);
 check('name search does NOT leak email', byName[0]?.email === null, `got ${JSON.stringify(byName[0]?.email)}`);
 check('name search still returns display fields', byName[0]?.full_name === 'Olivia Owner');
+
+console.log('\n── 0017: ai_runs metrics ──');
+// Read-own, write-never. The rows are about the user and they should be able to see
+// what was spent on their behalf, but a client that could INSERT here could forge its
+// own usage history — so writes are service_role only, expressed as "no policy at all".
+// Cleared first: the fixture users survive between runs, so a plain insert would
+// accumulate a row per run and the exact-count assertions below would drift from
+// "RLS works" to "you have run this script twice".
+psql(`delete from ai_runs where user_id in ('${uidO}','${uidR}')`);
+psql(`insert into ai_runs (user_id,kind,agent,outcome) values ('${uidO}','task','recipe','ok'),('${uidR}','task','trip','clarified')`);
+
+const runsAsOwner = JSON.parse(await (await rest('ai_runs?select=user_id,agent', tokO)).text());
+check('owner reads own AI runs', runsAsOwner.length === 1 && runsAsOwner[0].agent === 'recipe',
+  `${runsAsOwner.length} row(s)`);
+check('owner does NOT see another user\'s AI runs',
+  runsAsOwner.every((x) => x.user_id === uidO));
+
+const runsAsRecip = JSON.parse(await (await rest('ai_runs?select=user_id', tokR)).text());
+check('recipient sees only their own AI runs',
+  runsAsRecip.length === 1 && runsAsRecip[0].user_id === uidR, `${runsAsRecip.length} row(s)`);
+
+r = await rest('ai_runs', tokO, { method:'POST', body: JSON.stringify({ user_id: uidO, kind:'task', outcome:'ok' }) });
+check('authenticated CANNOT insert an AI run', r.status === 403 || r.status === 401, `HTTP ${r.status}`);
+
+// UPDATE and DELETE are asserted by EFFECT, not by status code.
+//
+// With RLS on and only a SELECT policy, an UPDATE or DELETE matches zero rows —
+// Postgres filters them out rather than raising, so PostgREST reports a perfectly
+// ordinary 204 No Content. Asserting `403` here fails against a database that is
+// behaving exactly as intended, and worse, it would keep passing if someone later
+// added a permissive UPDATE policy that returned 403 for an unrelated reason.
+// What matters is whether the row changed.
+await rest(`ai_runs?user_id=eq.${uidO}`, tokO, { method:'PATCH', body: JSON.stringify({ outcome:'error' }) });
+check('authenticated UPDATE changes nothing',
+  psql(`select outcome from ai_runs where user_id='${uidO}'`) === 'ok');
+
+await rest(`ai_runs?user_id=eq.${uidO}`, tokO, { method:'DELETE' });
+check('authenticated DELETE removes nothing',
+  psql(`select count(*) from ai_runs where user_id='${uidO}'`) === '1');
+
+const anonRuns = await fetch(`${BASE}/rest/v1/ai_runs?select=id`, { headers: { apikey: ANON } });
+check('anon reads no AI runs', JSON.parse(await anonRuns.text()).length === 0);
 
 console.log(`\n${fail === 0 ? '✅ ALL PASS' : '❌ FAILURES'}  ${pass} passed, ${fail} failed`);
 process.exit(fail === 0 ? 0 : 1);

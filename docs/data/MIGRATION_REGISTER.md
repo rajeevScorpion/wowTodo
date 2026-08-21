@@ -26,7 +26,11 @@ function first would have taken AI generation down. `db:diff:cloud` hashes ident
 admin delete is denied and every deletion fails with a 500. `db:diff:cloud` hashes
 identical (`855c35d11629e9ca`, 41588 bytes both sides).
 
-The next new migration must be **`0017`**.
+**0017 is applied LOCALLY ONLY** (2026-08-20). Phase 0 of the agentic redesign; it adds
+only new nullable columns and one new table, so it is safe to push ahead of the code that
+uses them. Push before deploying any function that writes `ai_runs`.
+
+The next new migration must be **`0018`**.
 
 ## Register
 
@@ -51,13 +55,14 @@ against the local mirror and verified to restore prior behaviour.
 | **0014** | `0014_unblock_deleting_tasks_with_branches.sql` | Fix DF-1 — `tasks.parent_todo_id` RESTRICT → SET NULL, so a branched todo no longer makes its task undeletable | branches | `0014_…rollback.sql` | ✅ | ✅ **tested** |
 | **0015** | `0015_ai_proxy_rate_limit.sql` | Fix F3 — per-user quota counters + `consume_ai_quota` RPC so `ai-proxy` has a spend bound | 0001 | `0015_…rollback.sql` | ✅ | ⬜ |
 | **0016** | `0016_grant_auth_admin_cascade_delete.sql` | Fix D1 — grant `supabase_auth_admin` SELECT/DELETE in `public` so the `on delete cascade` from `auth.users` can complete; without it account deletion fails with `Database error deleting user` | 0001–0015 | `0016_…rollback.sql` | ✅ | ⬜ |
+| **0017** | `0017_agentic_observability.sql` | Prompt 210 phase 0 — `ai_runs` metrics table (no utterance content), `tasks.agent/ai_confidence/prompt_version` provenance, `todos.note`. Makes the agentic phases measurable | 0001, 0016 | `0017_…rollback.sql` | ✅ | ✅ **tested** |
 
 ## Open items
 
 | Item | Severity | Detail |
 |---|---|---|
 | 3 migrations have **no rollback** | P2 | 0002, 0007, 0008. Defect **F7** |
-| 9 of 10 rollbacks remain **unexecuted** | P2 | Untested rollbacks are assumptions, not safety nets. **0013 was the first to complete the full loop**, and **0014 followed it** (forward → verify → rollback → confirm the defect returns → reapply → verify). The historical ones still have not run |
+| 9 of 11 rollbacks remain **unexecuted** | P2 | Untested rollbacks are assumptions, not safety nets. **0013 was the first to complete the full loop**, then **0014**, then **0017** (forward → verify → rollback → verify → reapply → verify). The historical ones still have not run |
 | 12 of 13 migrations lack the mandatory header | P2 | Grandfathered. **0013 carries it in full** and is the template for 0014+ |
 
 ## Rules for new migrations
@@ -67,8 +72,13 @@ against the local mirror and verified to restore prior behaviour.
 3. A truthful rollback is required. If reversal would destroy production data, use
    expand → backfill → verify → contract instead of pretending rollback is safe.
 4. Verify on the local mirror: forward → verify → rollback → verify → reapply → test.
-5. Add the row to this register **and** to `MIGRATION_ORDER.md`.
+5. Add the row to this register. `MIGRATION_ORDER.md` is **superseded** — it now holds
+   only the legacy-filename rename map, so a CLI-created migration has no row to add
+   there (0015–0017 have none).
 6. Regenerate types afterwards: `npm run gen:types`.
+7. If the migration adds a table holding user data, add it to
+   `scripts/verify-account-deletion.mjs` and run that suite. Nothing else in the repo
+   notices a missing cascade.
 
 ## Workflow — local and cloud are kept identical by the CLI
 

@@ -13,7 +13,7 @@ Full evidence: [120 audit](../audits/120_ARCHITECTURE_BACKEND_DATA_AND_SECURITY_
 | Deep links | scheme `wowtodo`; `wowtodo://callback`, `exp://127.0.0.1:8081/--/callback` |
 | Profile provisioning | `get_or_create_user_profile` on first sign-in |
 | Sign-out | `supabase.auth.signOut()` only — ⚠️ **F2** |
-| Account deletion | ❌ **not implemented** — Google Play requires this |
+| Account deletion | ✅ **Settings → Delete account** (`delete-account` Edge Function) — see below |
 
 ### Google-only sign-in
 
@@ -45,9 +45,25 @@ from `/auth/v1/user` rather than from the request body, so there is no way to as
 delete anyone other than yourself.
 
 One statement does the work — the admin delete of the auth row — and `on delete cascade`
-fans it out to all nine tables that reference `auth.users`. The single exception is
-`in_app_notifications.actor_id` (`on delete set null`): those rows are in a *different*
-user's inbox, so the link is severed rather than the row destroyed.
+fans it out to all ten tables that reference `auth.users` (ten since migration 0017 added
+`ai_runs`).
+
+`in_app_notifications` is the one table where the outcome depends on *which* column
+references the departing user, and it has four:
+
+| Column | Rule | Effect on a row in **someone else's** inbox |
+|---|---|---|
+| `user_id` | CASCADE | n/a — this is the user's own inbox |
+| `share_id` | CASCADE | **row is deleted** — it described a share that no longer exists |
+| `task_id` | CASCADE | **row is deleted** — it pointed at a task that no longer exists |
+| `actor_id` | SET NULL | row survives, the link to the actor is severed |
+
+Only the last of these was previously documented. The other two are second-order and were
+surfaced by `verify:account-deletion` in 2026-08-20 when a new row-count assertion showed
+the table losing three rows where the naive model predicted two. The behaviour is correct
+— a *"Vic shared 'Dinner Party' with you"* notification whose share and task are both gone
+deep-links to nothing — but it means deleting an account **can** remove notification rows
+from other users' inboxes, and that is worth stating plainly rather than discovering.
 
 That cascade needed a privilege fix (migration 0016). The RI trigger runs as
 `supabase_auth_admin`, which had **no grants at all** in `public` on either stack, so the
@@ -57,6 +73,12 @@ was verified to be true of the **cloud** project as well, not just locally.
 Both halves are covered: `npm run verify:account-deletion` drives the real function against
 a real database and asserts both that the user's data is gone and that a second user's data
 survives; 7 jest tests cover what the device is left holding afterwards.
+
+The suite asserts **deletion, not merely absence**. Counting rows `where user_id =
+'<victim>'` cannot distinguish a deleted row from one whose `user_id` was set to NULL —
+under `ON DELETE SET NULL` the data is still in the database and the count is still zero.
+Each table's total row count is therefore compared before and after. Proven by mutation:
+flipping `ai_runs` to `SET NULL` passes the per-column check and fails the row-count one.
 
 ## Secret placement
 

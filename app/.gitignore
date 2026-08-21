@@ -46,3 +46,9 @@ yarn-error.*
 # role key bypasses RLS entirely — it must never be committed.
 .anonkey
 .servicekey
+
+# Evaluation output (scripts/eval-voice-baseline.mjs). Synthetic utterances and
+# model responses only — a run artifact, not a record. The committed record is
+# docs/testing/VOICE_EVALUATION_BASELINE.md.
+eval-*-results.json
+eval160-results.json

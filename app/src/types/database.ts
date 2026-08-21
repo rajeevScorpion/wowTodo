@@ -34,6 +34,92 @@ export type Database = {
   }
   public: {
     Tables: {
+      ai_runs: {
+        Row: {
+          agent: string | null
+          created_at: string
+          error_code: string | null
+          fallback_used: boolean
+          id: string
+          kind: string
+          latency_ms: number | null
+          model: string | null
+          outcome: string
+          prompt_version: string | null
+          router_model: string | null
+          task_id: string | null
+          tokens_in: number | null
+          tokens_out: number | null
+          user_id: string
+        }
+        Insert: {
+          agent?: string | null
+          created_at?: string
+          error_code?: string | null
+          fallback_used?: boolean
+          id?: string
+          kind: string
+          latency_ms?: number | null
+          model?: string | null
+          outcome: string
+          prompt_version?: string | null
+          router_model?: string | null
+          task_id?: string | null
+          tokens_in?: number | null
+          tokens_out?: number | null
+          user_id: string
+        }
+        Update: {
+          agent?: string | null
+          created_at?: string
+          error_code?: string | null
+          fallback_used?: boolean
+          id?: string
+          kind?: string
+          latency_ms?: number | null
+          model?: string | null
+          outcome?: string
+          prompt_version?: string | null
+          router_model?: string | null
+          task_id?: string | null
+          tokens_in?: number | null
+          tokens_out?: number | null
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "ai_runs_task_id_fkey"
+            columns: ["task_id"]
+            isOneToOne: false
+            referencedRelation: "tasks"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      ai_usage_quota: {
+        Row: {
+          kind: string
+          request_count: number
+          user_id: string
+          window_seconds: number
+          window_start: string
+        }
+        Insert: {
+          kind: string
+          request_count?: number
+          user_id: string
+          window_seconds: number
+          window_start?: string
+        }
+        Update: {
+          kind?: string
+          request_count?: number
+          user_id?: string
+          window_seconds?: number
+          window_start?: string
+        }
+        Relationships: []
+      }
       in_app_notifications: {
         Row: {
           actor_id: string | null
@@ -258,12 +344,15 @@ export type Database = {
       }
       tasks: {
         Row: {
+          agent: string | null
+          ai_confidence: number | null
           created_at: string | null
           description: string | null
           event_time: string | null
           group_id: string | null
           id: string
           parent_todo_id: string | null
+          prompt_version: string | null
           source_text: string | null
           source_type: string
           title: string
@@ -271,12 +360,15 @@ export type Database = {
           user_id: string
         }
         Insert: {
+          agent?: string | null
+          ai_confidence?: number | null
           created_at?: string | null
           description?: string | null
           event_time?: string | null
           group_id?: string | null
           id?: string
           parent_todo_id?: string | null
+          prompt_version?: string | null
           source_text?: string | null
           source_type?: string
           title: string
@@ -284,12 +376,15 @@ export type Database = {
           user_id: string
         }
         Update: {
+          agent?: string | null
+          ai_confidence?: number | null
           created_at?: string | null
           description?: string | null
           event_time?: string | null
           group_id?: string | null
           id?: string
           parent_todo_id?: string | null
+          prompt_version?: string | null
           source_text?: string | null
           source_type?: string
           title?: string
@@ -321,6 +416,7 @@ export type Database = {
           due_time: string | null
           id: string
           is_branched: boolean | null
+          note: string | null
           order: number
           task_id: string
           title: string
@@ -334,6 +430,7 @@ export type Database = {
           due_time?: string | null
           id?: string
           is_branched?: boolean | null
+          note?: string | null
           order?: number
           task_id: string
           title: string
@@ -347,6 +444,7 @@ export type Database = {
           due_time?: string | null
           id?: string
           is_branched?: boolean | null
+          note?: string | null
           order?: number
           task_id?: string
           title?: string
@@ -407,6 +505,19 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      consume_ai_quota: {
+        Args: {
+          p_kind: string
+          p_limit: number
+          p_user_id: string
+          p_window_seconds: number
+        }
+        Returns: {
+          allowed: boolean
+          remaining: number
+          retry_after: number
+        }[]
+      }
       create_share_notification: {
         Args: {
           p_actor_id: string
