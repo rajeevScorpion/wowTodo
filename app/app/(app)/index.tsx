@@ -18,6 +18,7 @@ import { Button } from '../../src/components/ui/Button';
 import { AppText } from '../../src/components/ui/AppText';
 import { AnimatedPressable } from '../../src/components/ui/AnimatedPressable';
 import { useSemanticColors } from '../../src/design-system/useSemanticColors';
+import { agentStatusLine } from '../../src/services/ai/agentStatus';
 import { AppLanguage } from '../../src/types';
 
 export default function VoiceHomeScreen() {
@@ -71,7 +72,11 @@ export default function VoiceHomeScreen() {
         } else if (recordingState === 'recording') {
             const transcript = await stopVoiceRecording();
             if (transcript) {
-                router.push({ pathname: '/(app)/review', params: { text: transcript, source: 'voice', lang: language } });
+                // `autoGenerate` skips the transcript-review step. Reading your own
+                // words back was never the point of that screen — it was hiding the
+                // wait. The progressive status on the next screen fills that gap
+                // honestly, and the escape hatch survives as "Wrong transcript?".
+                router.push({ pathname: '/(app)/review', params: { text: transcript, source: 'voice', lang: language, autoGenerate: '1' } });
             }
         }
     };
@@ -183,7 +188,7 @@ export default function VoiceHomeScreen() {
                 {/* Processing indicator */}
                 {isProcessing && (
                     <AppText variant="muted" size="md">
-                        {language === 'hi' ? 'लिख रहे हैं...' : 'Transcribing...'}
+                        {agentStatusLine({ stage: 'transcribing' }, language)}
                     </AppText>
                 )}
 

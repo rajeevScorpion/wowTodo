@@ -35,17 +35,28 @@ turns the agentic planner on and off without an app-store release. It defaults t
 when absent, so forgetting to set it in cloud is the safe outcome rather than a surprise
 rollout. See [AGENTIC_INTENT_SYSTEM.md](../architecture/AGENTIC_INTENT_SYSTEM.md).
 
-## Cloud Edge Function secrets — **not yet set**
+## Cloud Edge Function secrets — **set**
 
-Required before the proxy works in production. Without them `ai-proxy` returns `503`.
+Corrected 2026-08-21: this section previously said "not yet set / BLOCKED", which was
+stale. `supabase secrets list` shows `OPENAI_API_KEY` and `GEMINI_API_KEY` present, which
+is why the app has been generating tasks against cloud all along.
+
+| Name | Purpose |
+|---|---|
+| `OPENAI_API_KEY` | chat + Whisper, shared by `ai-proxy` and `ai-agent` |
+| `GEMINI_API_KEY` | present, but the key has **no billing account attached**, so the tier-3 Gemini fallback will fail if it is ever reached. The agentic path never uses Gemini — `AGENT_MODELS` is OpenAI-only |
+| `AGENT_ROLLOUT` | **`all`** since 2026-08-21, by owner decision |
+| `AGENT_SPECIALIST_MODEL` | `gpt-4o-mini` |
+
+`supabase secrets list` prints digests, never values — safe to run and to paste.
+
+Deployed functions: `ai-proxy`, `delete-account`, `ai-agent` (2026-08-21).
+
+To disable the agentic planner without a deploy or an app release:
 
 ```bash
-supabase secrets set OPENAI_API_KEY=... GEMINI_API_KEY=...
-supabase functions deploy ai-proxy
+supabase secrets set AGENT_ROLLOUT=off
 ```
-
-**Status: BLOCKED** — deliberately not executed. No remote/production change has been made
-without owner approval.
 
 ## Secret hygiene
 

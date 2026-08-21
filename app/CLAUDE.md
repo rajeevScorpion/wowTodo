@@ -31,7 +31,7 @@ npm run gen:types       # regenerate src/types/database.ts from the local schema
 ```
 
 ```bash
-npm test                # jest — 56 tests
+npm test                # jest — 67 tests
 npm run test:watch
 npm run verify:rls               # authorisation suite, against the local stack — 26 checks
 npm run verify:account-deletion  # proves account deletion actually erases the data (D1) — 43 checks

@@ -152,6 +152,7 @@ export const useCreateTaskWithTodos = () => {
                     order: index,
                     due_date: todo.due_date,
                     due_time: todo.due_time,
+                    note: todo.note ?? null,
                 }),
             );
 
@@ -354,6 +355,7 @@ export const useAddTodo = () => {
                 order: newTodo.order ?? 999,
                 due_date: newTodo.due_date ?? null,
                 due_time: newTodo.due_time ?? null,
+                note: newTodo.note ?? null,
                 is_branched: false,
                 created_at: new Date().toISOString(),
                 updated_at: new Date().toISOString(),

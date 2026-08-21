@@ -184,6 +184,14 @@ export const TodoItem = React.memo(function TodoItem({ todo, onToggle, onDelete,
                         {todo.title}
                     </AppText>
                 )}
+                {/* Supporting detail — a recipe's quantities, a booking reference.
+                    Hidden while editing so the field being changed is the only
+                    text on screen. */}
+                {todo.note && !isEditing && (
+                    <AppText size="xs" color={colors.muted} marginTop={2}>
+                        {todo.note}
+                    </AppText>
+                )}
                 {dueInfo && (
                     <XStack alignItems="center" gap={4} marginTop={2}>
                         <Clock size={10} color={todo.completed ? colors.muted : colors.primary} />
@@ -249,6 +257,7 @@ export const TodoItem = React.memo(function TodoItem({ todo, onToggle, onDelete,
         prev.todo.is_branched === next.todo.is_branched &&
         prev.todo.due_date === next.todo.due_date &&
         prev.todo.due_time === next.todo.due_time &&
+        prev.todo.note === next.todo.note &&
         prev.isToggling === next.isToggling &&
         prev.isDeleting === next.isDeleting &&
         prev.isEditing === next.isEditing &&

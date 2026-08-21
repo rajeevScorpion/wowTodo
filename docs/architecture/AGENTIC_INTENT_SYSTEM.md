@@ -1,7 +1,8 @@
 # Agentic Intent System
 
-**Implemented 2026-08-21 (phase 1 of prompt 210).** Off by default; enabled server-side.
-The pre-agentic pipeline is documented separately in
+**Implemented 2026-08-21 (phases 1 and 2 of prompt 210).** Deployed to cloud and
+`AGENT_ROLLOUT=all` — live for every user, by owner decision on 2026-08-21. The
+pre-agentic pipeline is documented separately in
 [VOICE_AI_PIPELINE.md](VOICE_AI_PIPELINE.md) and is still the fallback for every request.
 
 ## Why
@@ -103,6 +104,15 @@ Off by default: a new pipeline is opted into, never out of. Checked **before** t
 so a disabled agent costs the user nothing. Changing it needs no app release — which is
 the entire reason the orchestrator is server-side.
 
+**Currently `all` in cloud.** To roll back, no deploy and no release is needed:
+
+```bash
+supabase secrets set AGENT_ROLLOUT=off
+```
+
+Every client falls back to the legacy path on the next request, and the `503` latch means
+each app process pays that cost once rather than per task.
+
 ## Quota
 
 One unit per **user action**, not per model call, sharing the `chat` budget with
@@ -144,11 +154,45 @@ call added.
   method into 3 steps in the final run; V19 does the same intermittently. `gpt-4o` fixes
   it — and broke V21 in exchange, at roughly 15x the cost, so it was not adopted. Revisit
   with a measurement, not an assumption.
-- **`todos.note` is not rendered yet.** The recipe specialist puts quantities there by
-  design ("Buy the vegetables" / "Onions 3 large; tomatoes 2 medium"). Until the UI shows
-  notes — phase 2 — those amounts are invisible on device, which makes the recipe agent
-  look worse than it is.
 - **Branch generation still uses the legacy path entirely.** Only `generateTask` is
   routed through the agent.
-- The eval harness runs against the **local** stack. The function is not yet deployed to
-  cloud.
+- The eval harness runs against the **local** stack, so `npm run eval:voice` measures
+  local code rather than what cloud is currently serving. Deploy after a prompt change or
+  the two drift silently.
+
+## Phase 2 — the voice flow
+
+The transcript-review step is gone. `index.tsx` passes `autoGenerate: '1'` on the voice
+path exactly as the typed path already did, so speaking a task goes straight to a result.
+**Nothing was deleted**: `review.tsx`'s text-editing state stayed and became the
+clarification and repair surface, reached only when it is actually useful.
+
+That screen was doing hidden work. The user read their own words back while the request
+ran, so the wait had somewhere to live. Removing it makes the gap bare — Whisper, router,
+specialist — and `AgentStatus` fills it with the stage the pipeline is genuinely in:
+
+| Stage | Driven by | Progress | Example |
+|---|---|---|---|
+| Transcribing | local Whisper call | 20% | *Transcribing…* |
+| Understanding | POST sent, awaiting `routed` | 45% | *Understanding what you need…* |
+| Planning | `routed` event | 65% | ***Recipe agent is planning chicken biryani*** |
+| Building | `progress` events | 85% | *6 steps so far…* |
+| Ready | `done` event | 100% | *8 steps ready* |
+
+The copy lives in [`agentStatus.ts`](../../app/src/services/ai/agentStatus.ts) as a pure
+function so it is unit-testable without the render stack, and the switch is exhaustive
+over the stage union — an unhandled stage is a compile error, not a blank line.
+
+Two rules the tests enforce, because both fail silently rather than loudly:
+
+- **No topic means generic wording, never an invented one.** `cleanTopic` returns `null`
+  and the caller checks `=== null` rather than truthiness, so a regression in the cleaner
+  cannot quietly render "Recipe agent is planning " with nothing after it.
+- **`building` progress is not derived from the step count.** The total is unknown while
+  steps arrive, so any percentage from it would be fabricated — and would move fastest on
+  the longest lists, which is backwards. The count does the talking instead.
+
+`todos.note` now renders in both the result preview and `TodoItem`, which is what makes
+the recipe specialist's quantities visible at all. They were being dropped by
+`normalizeAITodos` before it — the task looked fine and was simply missing its amounts,
+with the agent taking the blame for a client-side loss.

@@ -44,6 +44,7 @@ export type Todo = {
     order: number;
     due_date: string | null; // 'YYYY-MM-DD'
     due_time: string | null; // 'HH:MM' or 'HH:MM:SS'
+    note: string | null; // supporting detail — quantities, references (migration 0017)
     is_branched: boolean; // true when this todo has a branch task
     created_at: string;
     updated_at: string;
@@ -160,6 +161,11 @@ export type AIGeneratedTodo = {
     title: string;
     due_date: string | null; // 'YYYY-MM-DD'
     due_time: string | null; // 'HH:MM'
+
+    // Detail that belongs to the step but not in its title — a recipe's
+    // quantities, a trip's booking reference. Optional because the legacy
+    // single-prompt path never produces one (migration 0017 added the column).
+    note?: string | null;
 };
 
 export type AIGroupSuggestions = {
@@ -244,12 +250,17 @@ export function reminderSettingsToRow(
 export function normalizeAITodos(todos: (string | AIGeneratedTodo)[]): AIGeneratedTodo[] {
     return todos.map((t) => {
         if (typeof t === 'string') {
-            return { title: t, due_date: null, due_time: null };
+            return { title: t, due_date: null, due_time: null, note: null };
         }
         return {
             title: t.title,
             due_date: t.due_date ?? null,
             due_time: t.due_time ?? null,
+            // Dropping this here is invisible: the recipe specialist puts the
+            // quantities in `note`, so a normaliser that omits it silently turns
+            // "Buy paneer, tomatoes, cream" into a shopping step with no amounts
+            // and makes the agent look worse than it is.
+            note: t.note ?? null,
         };
     });
 }

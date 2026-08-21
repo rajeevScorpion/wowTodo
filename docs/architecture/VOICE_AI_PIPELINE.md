@@ -5,10 +5,12 @@ overwrite this document.
 
 > **Since 2026-08-21 this is the FALLBACK path, not the only one.** Task generation now
 > tries the router + specialist pipeline first — see
-> [AGENTIC_INTENT_SYSTEM.md](AGENTIC_INTENT_SYSTEM.md). Everything below still describes
-> what happens when that path is disabled or fails, which is every request until the
-> rollout flag is turned on, and every failed request afterwards. Transcription (steps
-> 1-4) is **unchanged and shared** by both paths.
+> [AGENTIC_INTENT_SYSTEM.md](AGENTIC_INTENT_SYSTEM.md), deployed with `AGENT_ROLLOUT=all`,
+> so everything below now describes only what happens when that path **fails**.
+> Transcription (steps 1-4) is **unchanged and shared** by both paths.
+>
+> Step 6 has also changed: the transcript-review step was removed in phase 2. Voice goes
+> straight from step 5 to the result screen, with progressive status covering the wait.
 
 ## Flow
 
@@ -35,7 +37,8 @@ overwrite this document.
       on failure → gemini-2.0-flash (branchPrompt.ts for branches)
       ← { title, description, event_time, group, todos[] }
 
-6. review.tsx → user confirms → useCreateTaskWithTodos() → Postgres
+6. review.tsx → user confirms group → useCreateTaskWithTodos() → Postgres
+      (the transcript-review step before this was removed in phase 2)
 7. scheduleRemindersForTodos() → expo-notifications
 ```
 

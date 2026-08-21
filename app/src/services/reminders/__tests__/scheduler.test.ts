@@ -37,6 +37,7 @@ function makeTodo(over: Partial<Todo> = {}): Todo {
         order: 0,
         due_date: null,
         due_time: null,
+        note: null,
         is_branched: false,
         created_at: NOW.toISOString(),
         updated_at: NOW.toISOString(),

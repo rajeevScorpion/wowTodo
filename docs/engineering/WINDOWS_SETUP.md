@@ -281,5 +281,5 @@ Voice transcription silently returns "No speech detected" unless **both** are tr
 cd app
 npx expo-doctor     # expect 17/18 (expo-asset peer dep is a known open item)
 npm run typecheck   # expect 0 errors
-npm test            # expect 12/12
+npm test            # expect 67/67
 ```

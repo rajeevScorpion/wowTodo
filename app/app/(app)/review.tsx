@@ -2,13 +2,15 @@ import { useState, useCallback, useEffect, useRef } from 'react';
 import { Alert, ActivityIndicator, View, Pressable, StyleSheet } from 'react-native';
 import { YStack, XStack } from 'tamagui';
 import { useLocalSearchParams, useRouter } from 'expo-router';
-import { RefreshCw, Sparkles, Plus, X, Check, Clock, Calendar, ChevronDown, Layers } from 'lucide-react-native';
+import { RefreshCw, Sparkles, Plus, X, Check, Clock, Calendar, ChevronDown, Layers, HelpCircle } from 'lucide-react-native';
 import { Input } from '../../src/components/ui/Input';
 import { Button } from '../../src/components/ui/Button';
 import { AppText } from '../../src/components/ui/AppText';
 import { Screen } from '../../src/components/ui/Screen';
+import { AgentStatus } from '../../src/components/AgentStatus';
 import { useAuth } from '../../src/providers/AuthProvider';
-import { generateTask } from '../../src/services/ai';
+import { generateTask, AgentClarificationNeeded } from '../../src/services/ai';
+import type { PipelineStage } from '../../src/services/ai/agentStatus';
 import { useCreateTaskWithTodos } from '../../src/features/tasks/api';
 import { useGroups, useCreateGroup } from '../../src/features/groups/api';
 import { useReminderSettings } from '../../src/features/reminders/api';
@@ -53,7 +55,25 @@ export default function ReviewScreen() {
     const colors = useSemanticColors();
 
     const [editedText, setEditedText] = useState(text);
-    const [isGenerating, setIsGenerating] = useState(false);
+
+    // Seeded true when this screen was told to auto-generate, because the effect
+    // that starts generation runs *after* the first paint. Left at false, that
+    // paint renders the text-editing screen — a one-frame flash of exactly the
+    // step this phase removed.
+    const [isGenerating, setIsGenerating] = useState(
+        autoGenerate === '1' && text.trim().length > 0,
+    );
+
+    // Where the pipeline has got to, for the progressive status line.
+    //
+    // Starts at `understanding` rather than at nothing: by the time this screen
+    // mounts, transcription is already done and the request is about to go out.
+    // It also stays here for the whole legacy fallback, which emits no stages —
+    // truthful, if uninformative, and the bar stops rather than inventing motion.
+    const [stage, setStage] = useState<PipelineStage>({ stage: 'understanding' });
+
+    // The planner declined to guess and asked something instead.
+    const [clarification, setClarification] = useState<string | null>(null);
 
     // Group picker state (shown after AI generates)
     const [aiResult, setAiResult] = useState<AIGeneratedTask | null>(null);
@@ -72,9 +92,13 @@ export default function ReviewScreen() {
     const handleGenerateTask = useCallback(async () => {
         if (!editedText.trim() || !user) return;
         setIsGenerating(true);
+        setClarification(null);
+        setStage({ stage: 'understanding' });
         try {
             const groupNames = groups?.map(g => g.name) ?? [];
-            const result = await generateTask(editedText.trim(), groupNames, language);
+            const result = await generateTask(editedText.trim(), groupNames, language, {
+                onStage: setStage,
+            });
             setAiResult(result);
 
             // Match AI-selected group against existing groups
@@ -90,6 +114,14 @@ export default function ReviewScreen() {
                 setSelectedNewGroupName(selectedName);
             }
         } catch (error: any) {
+            // A question is the planner working, not failing. It gets the editable
+            // text back with the question above it — a checkpoint that appears when
+            // the system is genuinely unsure, instead of on every single utterance
+            // the way the old review screen did.
+            if (error instanceof AgentClarificationNeeded) {
+                setClarification(error.question);
+                return;
+            }
             Alert.alert(
                 'Failed to generate task',
                 error.message || 'Something went wrong. Please try again.',
@@ -97,16 +129,23 @@ export default function ReviewScreen() {
         } finally {
             setIsGenerating(false);
         }
-    }, [editedText, user, groups]);
+    }, [editedText, user, groups, language]);
 
-    // Auto-generate when coming from text input (skip text editing step)
+    // Auto-generate on arrival — every path reaches this screen ready to plan.
+    //
+    // The latch is set only once generation actually starts. Latching on the
+    // first render instead would strand the screen whenever the session had not
+    // resolved yet: `handleGenerateTask` returns immediately without a `user`,
+    // the retry is already marked as done, and the status line spins forever with
+    // nothing behind it. Depending on `user` means the run happens as soon as it
+    // is genuinely possible.
     const hasAutoGenerated = useRef(false);
     useEffect(() => {
-        if (autoGenerate === '1' && !hasAutoGenerated.current && editedText.trim()) {
-            hasAutoGenerated.current = true;
-            handleGenerateTask();
-        }
-    }, [autoGenerate]);
+        if (autoGenerate !== '1' || hasAutoGenerated.current) return;
+        if (!user || !editedText.trim()) return;
+        hasAutoGenerated.current = true;
+        handleGenerateTask();
+    }, [autoGenerate, user, editedText, handleGenerateTask]);
 
     const handleConfirmCreate = useCallback(async () => {
         if (!aiResult || !user) return;
@@ -134,6 +173,13 @@ export default function ReviewScreen() {
                     source_type: source as 'text' | 'voice',
                     group_id: groupId,
                     event_time: aiResult.event_time,
+                    // Provenance (migration 0017). Null on the legacy path, which
+                    // is exactly how the two are told apart later — without it, a
+                    // bad batch of tasks cannot be traced back to a specialist or
+                    // a prompt version.
+                    agent: aiResult.agent ?? null,
+                    ai_confidence: aiResult.confidence ?? null,
+                    prompt_version: aiResult.prompt_version ?? null,
                 },
                 todos: aiResult.todos,
             });
@@ -274,6 +320,9 @@ export default function ReviewScreen() {
                                         <AppText variant="muted" size="xs" style={{ width: 20 }}>{index + 1}.</AppText>
                                         <YStack flex={1}>
                                             <AppText size="sm">{todo.title}</AppText>
+                                            {todo.note && (
+                                                <AppText size="xs" variant="muted">{todo.note}</AppText>
+                                            )}
                                             {dueStr && (
                                                 <XStack alignItems="center" gap={4}>
                                                     <Clock size={10} color={colors.primary} />
@@ -468,7 +517,13 @@ export default function ReviewScreen() {
                             disabled={isGenerating}
                             size="md"
                         >
-                            <AppText weight="medium" color={colors.primary}>Edit Text</AppText>
+                            {/* The escape hatch from the removed review step. It is
+                                no longer mandatory, but it must still be obvious —
+                                a misheard word has to be fixable without redoing
+                                the recording. */}
+                            <AppText weight="medium" color={colors.primary}>
+                                {source === 'voice' ? 'Wrong transcript?' : 'Edit Text'}
+                            </AppText>
                         </Button>
 
                         <Button
@@ -494,27 +549,40 @@ export default function ReviewScreen() {
         );
     }
 
-    // Auto-generate loading state
-    if (autoGenerate === '1' && !aiResult) {
+    // Planning in flight — the progressive status line.
+    //
+    // Reached both by the auto-generate pass and by a re-submit from the
+    // clarification screen, so the wait looks the same wherever it comes from.
+    if (isGenerating) {
         return (
             <Screen edges={['left', 'right']}>
-                <YStack flex={1} alignItems="center" justifyContent="center" gap="$4" padding="$2">
-                    <ActivityIndicator color={colors.primary} size="large" />
-                    <AppText variant="muted" size="md">
-                        {language === 'hi' ? 'AI सोच रहा है...' : 'AI is thinking...'}
-                    </AppText>
+                <YStack flex={1} alignItems="center" justifyContent="center" padding="$2">
+                    <AgentStatus stage={stage} language={language} />
                 </YStack>
             </Screen>
         );
     }
 
-    // Initial state — text editing
+    // Text editing — now reached only when it is actually useful: the planner
+    // asked a question, or the user tapped "Wrong transcript?".
     return (
         <Screen edges={['left', 'right']}>
             <YStack flex={1} gap="$4" padding="$2">
-                <AppText variant="muted" size="md">
-                    Review and edit your text before creating a task:
-                </AppText>
+                {clarification ? (
+                    <XStack alignItems="flex-start" gap="$2">
+                        <HelpCircle size={18} color={colors.primary} style={{ marginTop: 2 }} />
+                        <YStack flex={1} gap="$1">
+                            <AppText size="md" weight="medium">{clarification}</AppText>
+                            <AppText variant="muted" size="sm">
+                                Add the detail below and try again.
+                            </AppText>
+                        </YStack>
+                    </XStack>
+                ) : (
+                    <AppText variant="muted" size="md">
+                        Review and edit your text before creating a task:
+                    </AppText>
+                )}
 
                 <Input
                     value={editedText}

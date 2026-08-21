@@ -112,6 +112,20 @@ describe('generateTaskWithAgent', () => {
         expect(result.prompt_version).toBe('recipe/v1');
     });
 
+    it("keeps a step's note, so the recipe agent's quantities reach the UI", async () => {
+        // The note is where the recipe specialist puts amounts by design, to keep
+        // them out of the title. A normaliser that drops the field loses them
+        // silently — the task still looks fine, it is just wrong, and the agent
+        // takes the blame for the client's data loss.
+        mockExpoFetch.mockResolvedValue(
+            respond([{ type: 'done', task: TASK, agent: 'recipe', confidence: 0.9, prompt_version: 'recipe/v1' }]),
+        );
+
+        const result = await generateTaskWithAgent('biryani for six', undefined, 'en');
+
+        expect(result.todos[0].note).toBe('Chicken 1.5 kg');
+    });
+
     it('throws AgentClarificationNeeded rather than returning a task', async () => {
         // mockImplementation, not mockResolvedValue: a response carries a stateful
         // reader, so reusing one object across two calls hands the second an
